@@ -44,7 +44,11 @@ ce qui est un compromis assumé, ce qui manque), pas juste une liste de bonnes i
 ## Ce que fait l'application
 
 - Reçoit une demande de VM — webhook GLPI (`/webhooks/glpi`) **ou** formulaire natif du
-  dashboard (`/requests/new`), les deux créent la même chose et suivent le même circuit
+  dashboard (`/requests/new`), les deux créent la même chose et suivent le même circuit.
+  Le formulaire natif propose une liste déroulante des templates réellement présents sur
+  le cluster Proxmox (plus de nom tapé à la main qui ne correspond à rien), rejette un nom
+  d'hôte déjà utilisé par une demande active, et peut être désactivé entièrement depuis
+  `/settings` si tu passes uniquement par GLPI (le webhook, lui, reste actif quoi qu'il arrive)
 - La met en attente de validation par un humain sur un dashboard web
 <img width="1920" height="1077" alt="Capture d’écran du 2026-10-01 13-35-45" src="https://github.com/user-attachments/assets/538793a2-f784-469d-9844-c2cb3c27ec9f" />
 <img width="1884" height="1004" alt="Capture d’écran du 2026-10-01 13-37-11" src="https://github.com/user-attachments/assets/7659d34e-2efc-4f3f-a88e-b3cd947e9748" />
@@ -80,13 +84,11 @@ informations de base :
 | `vlan` | non | VLAN cible — normalisé automatiquement à son seul numéro ("VLAN 100" → "100"), utilisé pour choisir le bon sous-réseau si l'IPAM en gère plusieurs (voir `/connections/<nom>/subnets`) |
 | `environment` | non | Libre (ex: "production") — disponible uniquement via `/requests/new`, pas transmis par le formulaire GLPI actuel |
 
-**Limite importante sur `os_template`** : Terraform ne clone que des templates déjà
-connus de `backend/app/provisioning/terraform_runner.py`
-(`TEMPLATE_VMID_MAP` — aujourd'hui une seule entrée d'exemple, `tmpl-debian13`). La
-valeur envoyée doit correspondre exactement à une clé de ce dictionnaire, sinon la
-création échoue avec "Template Proxmox inconnu". Ajoute tes propres templates dans ce
-fichier avant de tester avec autre chose que l'exemple fourni — ce n'est pas encore une
-liste éditable depuis l'interface.
+**Sur `os_template`** : résolu en direct contre le cluster Proxmox (nom de VM marquée
+"template" dans Proxmox) — pas une liste codée en dur à maintenir. Le formulaire natif
+affiche les templates réellement trouvés ; via GLPI, la valeur envoyée doit correspondre
+exactement au nom du template dans Proxmox, sinon la création échoue avec "Template
+Proxmox introuvable".
 
 **Format attendu côté GLPI** (si tu utilises le webhook plutôt que le formulaire natif) :
 le contenu du ticket (`item.content`) doit contenir des lignes au format

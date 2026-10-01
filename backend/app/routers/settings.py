@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth import hash_password, require_admin
 from app.counts import pending_approval_count
 from app.database import get_db
+from app.feature_flags import load_features, save_features
 from app.ldap_auth import load_ldap_config, save_ldap_config, test_ldap_connection
 from app.models import User, UserRole
 from app.templating import templates
@@ -20,8 +21,15 @@ router = APIRouter(prefix="/settings", include_in_schema=False, dependencies=[De
 @router.get("")
 def settings_home(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
-        request, "settings.html", {"pending_count": pending_approval_count(db)}
+        request, "settings.html",
+        {"pending_count": pending_approval_count(db), "features": load_features()},
     )
+
+
+@router.post("/features")
+def update_features(native_vm_form_enabled: str = Form(None)):
+    save_features({"native_vm_form_enabled": native_vm_form_enabled is not None})
+    return RedirectResponse(url="/settings", status_code=303)
 
 
 @router.get("/users")

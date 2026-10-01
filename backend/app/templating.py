@@ -37,6 +37,12 @@ def status_label(value: str) -> str:
     return STATUS_LABELS.get(value, value)
 
 
+def native_vm_form_enabled() -> bool:
+    from app.feature_flags import load_features
+    return load_features().get("native_vm_form_enabled", True)
+
+
 templates = Jinja2Templates(directory=Path(__file__).resolve().parent / "templates")
 templates.env.filters["status_label"] = status_label
 templates.env.globals["static_version"] = static_version
+templates.env.globals["native_vm_form_enabled"] = native_vm_form_enabled

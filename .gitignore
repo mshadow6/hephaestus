@@ -7,6 +7,10 @@ config/providers/*.yaml
 !config/providers/*.example.yaml
 config/ldap.yaml
 
+# Bascules de fonctionnalités (ex: formulaire natif activé/désactivé) — choix propre à
+# chaque installation, pas une donnée du dépôt.
+config/features.yaml
+
 # Inventaire Ansible persistant : hostnames/IPs réels de l'infra qui tourne l'app,
 # régénéré automatiquement (valeur par défaut vide) à la première écriture — voir
 # app.provisioning.inventory_file.DEFAULT_INVENTORY

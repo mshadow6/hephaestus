@@ -25,4 +25,20 @@
     <span>À venir</span>
   </div>
 </div>
+
+<div class="section-title" style="margin-left:0">Points d'entrée des demandes de VM</div>
+<div class="card">
+  <form method="post" action="/settings/features" class="form-field checkbox-field" style="padding: 1.25rem;">
+    <label>
+      <input type="checkbox" name="native_vm_form_enabled" onchange="this.form.requestSubmit()"
+             {% if features.native_vm_form_enabled %}checked{% endif %}>
+      Formulaire natif de demande de VM (<code>/requests/new</code>)
+    </label>
+    <div class="help">
+      Désactive-le si tu passes exclusivement par GLPI (ou un autre ITSM plus tard) pour
+      créer tes demandes — le webhook GLPI, lui, reste actif quoi qu'il arrive. Chacun
+      choisit comment il veut déclencher ses demandes, les deux ne sont pas liés.
+    </div>
+  </form>
+</div>
 {% endblock %}

@@ -21,7 +21,21 @@
       </div>
       <div class="form-field">
         <label for="os_template">Template / image</label>
-        <input type="text" id="os_template" name="os_template" placeholder="ex : debian-12">
+        {% if available_templates %}
+        <select id="os_template" name="os_template">
+          <option value="">— choisir —</option>
+          {% for t in available_templates %}
+          <option value="{{ t.name }}">{{ t.name }} (node {{ t.node }})</option>
+          {% endfor %}
+        </select>
+        {% else %}
+        <input type="text" id="os_template" name="os_template" placeholder="ex : tmpl-debian13">
+        <div class="help">
+          Aucun template détecté sur le cluster (connexion Proxmox absente/injoignable, ou
+          aucune VM marquée "template" dessus) — saisie libre, le nom doit correspondre
+          exactement à un template existant.
+        </div>
+        {% endif %}
       </div>
       <div class="form-field">
         <label for="environment">Environnement</label>
@@ -29,7 +43,18 @@
       </div>
       <div class="form-field">
         <label for="vlan">VLAN</label>
-        <input type="text" id="vlan" name="vlan" placeholder="ex : vlan 100">
+        {% if configured_vlans %}
+        <select id="vlan" name="vlan">
+          <option value="">— aucun —</option>
+          {% for v in configured_vlans %}
+          <option value="{{ v }}">{{ v }}</option>
+          {% endfor %}
+        </select>
+        <div class="help">Liste des VLAN configurés sur la connexion IPAM active (/connections/.../subnets).</div>
+        {% else %}
+        <input type="text" id="vlan" name="vlan" placeholder="ex : 100">
+        <div class="help">Optionnel — laisse vide si ton infra n'utilise pas de VLAN.</div>
+        {% endif %}
       </div>
       <div class="form-field">
         <label for="cpu">vCPU</label>

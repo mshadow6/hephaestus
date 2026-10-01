@@ -84,7 +84,10 @@ PROVIDER_TYPES: dict[str, ProviderType] = {
             ConnectionField("api_url", "URL API", help_text="ex: https://192.0.2.20:8006"),
             ConnectionField("api_token", "Token API", input_type="password",
                              help_text="format user@realm!tokenid=secret"),
-            ConnectionField("node", "Nœud cible"),
+            ConnectionField("node", "Nœud par défaut", required=False,
+                             help_text="Plus utilisé pour créer une VM (le nœud est résolu "
+                                        "automatiquement depuis le template choisi) — gardé "
+                                        "informatif, peut rester vide."),
             ConnectionField("insecure_tls", "Ignorer la validation TLS (certificat auto-signé)",
                              input_type="checkbox", required=False, default=True),
             ConnectionField("network_bridge", "Bridge réseau", required=False, default="vmbr0"),

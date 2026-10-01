@@ -8,18 +8,12 @@ from pathlib import Path
 
 from app.ipam.base import IpReservation
 from app.models import VMRequest
+from app.provisioning.inventory import resolve_template_vmid
 
 logger = logging.getLogger(__name__)
 
 MODULE_SOURCE_DIR = Path("/app/terraform/proxmox")
 RUNS_BASE_DIR = Path("/app/terraform-runs")
-
-# Mapping nom de template (tel que renseigné dans GLPI) -> VM ID Proxmox du template à cloner.
-# TODO: déplacer vers un vrai registre (config externe, ou requête à l'API Proxmox par tag)
-# une fois qu'il y a plus d'un template.
-TEMPLATE_VMID_MAP: dict[str, int] = {
-    "tmpl-debian13": 104,
-}
 
 
 class ProvisioningError(RuntimeError):
@@ -54,12 +48,14 @@ def _sync_module(run_dir: Path) -> None:
 def _render_tfvars(
     vm_request: VMRequest, reservation: IpReservation, bootstrap_root_password: str, proxmox_config: dict
 ) -> dict:
-    template_vmid = TEMPLATE_VMID_MAP.get(vm_request.os_template)
-    if template_vmid is None:
-        known = ", ".join(sorted(TEMPLATE_VMID_MAP)) or "(aucun)"
+    resolved = resolve_template_vmid(proxmox_config, vm_request.os_template or "")
+    if resolved is None:
         raise ProvisioningError(
-            f"Template Proxmox inconnu '{vm_request.os_template}'. Templates connus : {known}"
+            f"Template Proxmox introuvable : '{vm_request.os_template}' — vérifie le nom exact "
+            "sur le cluster (visible dans la liste déroulante de /requests/new, ou "
+            "directement dans l'interface Proxmox : un template a l'icône grisée)."
         )
+    template_vmid, template_node = resolved
 
     if not reservation.gateway:
         raise ProvisioningError(
@@ -68,7 +64,10 @@ def _render_tfvars(
         )
 
     return {
-        "proxmox_node": proxmox_config["node"],
+        # Node résolu depuis le template lui-même (pas une valeur fixe de la connexion) :
+        # le clone Proxmox se fait sur le même node que le template, s'y fier est plus
+        # sûr qu'un node configuré statiquement qui pourrait ne pas être le bon.
+        "proxmox_node": template_node,
         "proxmox_insecure": proxmox_config.get("insecure_tls", True),
         "vm_name": vm_request.hostname,
         "vm_vcpu": vm_request.cpu,

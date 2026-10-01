@@ -16,6 +16,8 @@ from app.models import PlaybookRun, RequestStatus, VMRequest
 from app.parsers.glpi_formcreator import normalize_vlan
 from app.playbooks.store import list_playbooks
 from app.provisioning.ansible_runner import PLAYBOOKS_DIR
+from app.provisioning.inventory import discover_proxmox_templates
+from app.feature_flags import load_features
 from app.queue import vm_queue
 from app.templating import templates
 from app.worker.tasks import process_vm_request
@@ -95,6 +97,17 @@ async def list_requests(request: Request, db: Session = Depends(get_db)):
     )
 
 
+_ACTIVE_STATUSES = [s for s in RequestStatus if s not in (RequestStatus.rejected, RequestStatus.failed, RequestStatus.vm_failed)]
+
+
+def _configured_vlans() -> list[str]:
+    ipam_conn = get_active_connection("ipam")
+    if ipam_conn is None or ipam_conn.type != "phpipam":
+        return []
+    subnets = ipam_conn.config.get("subnets") or []
+    return sorted({s["vlan"] for s in subnets if s.get("vlan") is not None})
+
+
 @router.get("/requests/new")
 def new_request_form(request: Request, db: Session = Depends(get_db)):
     """Formulaire natif de demande de VM — second point d'entrée possible en plus du
@@ -103,18 +116,36 @@ def new_request_form(request: Request, db: Session = Depends(get_db)):
     GLPI n'est qu'une source de demandes parmi d'autres possibles, pas une dépendance du
     pipeline lui-même — voir VMRequest.glpi_ticket_id (nullable) et _notify_glpi (no-op
     silencieux si pas de ticket associé)."""
+    if not load_features().get("native_vm_form_enabled", True):
+        raise HTTPException(status_code=404, detail="Formulaire natif désactivé — voir /settings")
     return templates.TemplateResponse(
         request, "requests_new.html",
-        {"pending_count": pending_approval_count(db), "error": request.query_params.get("error")},
+        {
+            "pending_count": pending_approval_count(db),
+            "error": request.query_params.get("error"),
+            "available_templates": discover_proxmox_templates(),
+            "configured_vlans": _configured_vlans(),
+        },
     )
 
 
 @router.post("/requests/new")
 async def create_request(request: Request, db: Session = Depends(get_db)):
+    if not load_features().get("native_vm_form_enabled", True):
+        raise HTTPException(status_code=404, detail="Formulaire natif désactivé — voir /settings")
     form = await request.form()
     hostname = (form.get("hostname") or "").strip()
     if not hostname:
         return RedirectResponse(url="/requests/new?error=Nom+d%27hôte+requis", status_code=303)
+
+    existing = db.scalar(
+        select(VMRequest).where(VMRequest.hostname == hostname, VMRequest.status.in_(_ACTIVE_STATUSES))
+    )
+    if existing is not None:
+        return RedirectResponse(
+            url=f"/requests/new?error=Le+nom+d%27h%C3%B4te+%C2%AB+{hostname}+%C2%BB+est+d%C3%A9j%C3%A0+utilis%C3%A9+(demande+%23{existing.id})",
+            status_code=303,
+        )
 
     def _int_or_none(key: str) -> int | None:
         raw = (form.get(key) or "").strip()
