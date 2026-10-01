@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}Keycloak — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings">&larr; Retour aux paramètres</a>
+
+<div class="page-header"><h2>Authentification Keycloak (OIDC)</h2></div>
+
+<div class="card">
+  <form method="post" action="/settings/keycloak">
+    <div class="form-grid">
+      <div class="form-field checkbox-field">
+        <label>
+          <input type="checkbox" name="enabled" {% if config.enabled %}checked{% endif %}>
+          Activer l'authentification Keycloak (en complément des comptes locaux/LDAP)
+        </label>
+      </div>
+      <div class="form-field">
+        <label for="issuer_url">URL du realm</label>
+        <input type="text" id="issuer_url" name="issuer_url" value="{{ config.issuer_url }}"
+               placeholder="https://keycloak.example.local/realms/hephaestus">
+        <div class="help">Sans slash final. Doit répondre sur <code>/.well-known/openid-configuration</code>.</div>
+      </div>
+      <div class="form-field">
+        <label for="client_id">Client ID</label>
+        <input type="text" id="client_id" name="client_id" value="{{ config.client_id }}">
+      </div>
+      <div class="form-field">
+        <label for="client_secret">Client secret</label>
+        <input type="password" id="client_secret" name="client_secret" value="{{ config.client_secret }}">
+      </div>
+      <div class="form-field">
+        <label>Rôle au premier login</label>
+        <div class="type-picker">
+          <label><input type="radio" name="default_role" value="viewer" {% if config.default_role != 'admin' %}checked{% endif %}> <span>Lecture seule</span></label>
+          <label><input type="radio" name="default_role" value="admin" {% if config.default_role == 'admin' %}checked{% endif %}> <span>Admin</span></label>
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">Enregistrer</button>
+      <button type="button" class="btn btn-secondary"
+              hx-post="/settings/keycloak/test"
+              hx-include="closest form"
+              hx-target="#test-result-slot"
+              hx-swap="innerHTML">
+        Tester la connexion
+      </button>
+    </div>
+    <div id="test-result-slot"></div>
+  </form>
+</div>
+
+<div class="section-title" style="margin-left:0">Comment ça marche</div>
+<div class="card" style="padding:1.25rem; font-size:0.85rem; color:var(--text-muted)">
+  <p>Côté Keycloak : URL de redirection à autoriser sur le client —
+  <code class="mono">{{ callback_url }}</code></p>
+  <p>Même principe que LDAP : premier login réussi crée un compte "fantôme" (rôle choisi
+  ci-dessus), l'auth repasse par Keycloak à chaque connexion suivante — pas de mot de
+  passe stocké côté app.</p>
+  <p style="margin-bottom:0">"Tester la connexion" vérifie seulement que le realm répond
+  correctement sur son document de découverte OIDC — pas un test de connexion
+  utilisateur complet (impossible sans navigateur pour suivre la redirection).</p>
+</div>
+{% endblock %}

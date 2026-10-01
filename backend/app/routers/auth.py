@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.audit_log import client_ip, log_account_disabled, log_account_locked, log_login_failure, log_login_success, log_logout
 from app.auth import any_user_exists, get_user_by_username, hash_password, verify_password_constant_time
 from app.database import get_db
+from app.keycloak_auth import build_oauth_client, load_keycloak_config
 from app.ldap_auth import authenticate as ldap_authenticate
 from app.models import User, UserRole
 from app.templating import templates
@@ -61,7 +62,10 @@ def setup_submit(
 def login_form(request: Request, next: str = "/", db: Session = Depends(get_db)):
     if not any_user_exists(db):
         return RedirectResponse(url="/setup")
-    return templates.TemplateResponse(request, "login.html", {"error": None, "next": next})
+    return templates.TemplateResponse(
+        request, "login.html",
+        {"error": None, "next": next, "keycloak_enabled": load_keycloak_config().get("enabled", False)},
+    )
 
 
 @router.post("/login")
@@ -80,13 +84,15 @@ def login_submit(
     # tenter l'authentification, pour qu'un compte verrouillé ne consomme pas une tentative
     # LDAP en plus (pas de round-trip réseau inutile vers l'annuaire).
     ip = client_ip(request)
+    keycloak_enabled = load_keycloak_config().get("enabled", False)
 
     if user is not None:
         if user.disabled:
             log_login_failure(username, "compte désactivé", ip)
             return templates.TemplateResponse(
                 request, "login.html",
-                {"error": "Compte désactivé après trop d'échecs — contacte un administrateur.", "next": next},
+                {"error": "Compte désactivé après trop d'échecs — contacte un administrateur.",
+                 "next": next, "keycloak_enabled": keycloak_enabled},
                 status_code=403,
             )
         if user.locked_until is not None and user.locked_until > now:
@@ -94,7 +100,8 @@ def login_submit(
             log_login_failure(username, "verrouillé temporairement", ip)
             return templates.TemplateResponse(
                 request, "login.html",
-                {"error": f"Trop de tentatives — réessaie dans {wait_s}s.", "next": next},
+                {"error": f"Trop de tentatives — réessaie dans {wait_s}s.",
+                 "next": next, "keycloak_enabled": keycloak_enabled},
                 status_code=429,
             )
 
@@ -140,7 +147,7 @@ def login_submit(
     log_login_failure(username, "identifiants incorrects", ip)
     return templates.TemplateResponse(
         request, "login.html",
-        {"error": "Identifiant ou mot de passe incorrect.", "next": next},
+        {"error": "Identifiant ou mot de passe incorrect.", "next": next, "keycloak_enabled": keycloak_enabled},
         status_code=401,
     )
 
@@ -152,3 +159,62 @@ def logout(request: Request):
         log_logout(user["username"], client_ip(request))
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)
+
+
+@router.get("/auth/keycloak/login")
+async def keycloak_login(request: Request):
+    config = load_keycloak_config()
+    if not config.get("enabled"):
+        return RedirectResponse(url="/login?error=Keycloak+désactivé", status_code=303)
+    client = build_oauth_client(config)
+    redirect_uri = str(request.url_for("keycloak_callback"))
+    try:
+        # authorize_redirect va chercher le document de découverte OIDC (server_metadata_url)
+        # avant de construire l'URL de redirection — un realm injoignable ici plantait en
+        # 500 brute avant ce correctif (trouvé en testant avec une URL de realm bidon).
+        return await client.authorize_redirect(request, redirect_uri)
+    except Exception as exc:  # noqa: BLE001
+        log_login_failure("(keycloak)", f"redirection échouée : {exc}", client_ip(request))
+        return RedirectResponse(url="/login?error=Realm+Keycloak+injoignable", status_code=303)
+
+
+@router.get("/auth/keycloak/callback", name="keycloak_callback")
+async def keycloak_callback(request: Request, db: Session = Depends(get_db)):
+    config = load_keycloak_config()
+    if not config.get("enabled"):
+        return RedirectResponse(url="/login?error=Keycloak+désactivé", status_code=303)
+
+    client = build_oauth_client(config)
+    ip = client_ip(request)
+    try:
+        token = await client.authorize_access_token(request)
+    except Exception as exc:  # noqa: BLE001 — n'importe quel souci du côté Keycloak
+        # (code expiré, refusé, realm injoignable...) doit ramener proprement au login,
+        # jamais une 500 brute.
+        log_login_failure("(keycloak)", f"échange de jeton échoué : {exc}", ip)
+        return RedirectResponse(url="/login?error=Connexion+Keycloak+échouée", status_code=303)
+
+    userinfo = token.get("userinfo") or {}
+    username = userinfo.get("preferred_username") or userinfo.get("email")
+    if not username:
+        log_login_failure("(keycloak)", "userinfo sans preferred_username/email", ip)
+        return RedirectResponse(url="/login?error=Réponse+Keycloak+incomplète", status_code=303)
+
+    user = get_user_by_username(db, username)
+    if user is None:
+        # Même principe que le premier login LDAP : compte "fantôme", rôle le plus
+        # restrictif par défaut (configurable), à monter en admin depuis /settings/users.
+        role = UserRole.admin if config.get("default_role") == "admin" else UserRole.viewer
+        user = User(username=username, password_hash=None, role=role, source="keycloak")
+        db.add(user)
+        db.commit()
+    elif user.source != "keycloak":
+        log_login_failure(username, f"identifiant déjà utilisé par un compte {user.source}", ip)
+        return RedirectResponse(url="/login?error=Identifiant+déjà+utilisé+par+un+autre+compte", status_code=303)
+    elif user.disabled:
+        log_login_failure(username, "compte désactivé", ip)
+        return RedirectResponse(url="/login?error=Compte+désactivé", status_code=303)
+
+    log_login_success(user.username, "keycloak", ip)
+    request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
+    return RedirectResponse(url="/", status_code=303)

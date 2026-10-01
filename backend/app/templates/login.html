@@ -43,6 +43,13 @@
           <button type="submit" class="btn">Se connecter</button>
         </div>
       </form>
+      {% if keycloak_enabled %}
+      <div style="padding: 0 1.25rem 1.25rem;">
+        <a href="/auth/keycloak/login" class="btn btn-secondary" style="width:100%; text-align:center; display:block;">
+          Se connecter avec Keycloak
+        </a>
+      </div>
+      {% endif %}
     </div>
   </main>
 </body>

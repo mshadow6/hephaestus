@@ -6,6 +6,7 @@
 config/providers/*.yaml
 !config/providers/*.example.yaml
 config/ldap.yaml
+config/keycloak.yaml
 
 # Bascules de fonctionnalités (ex: formulaire natif activé/désactivé) — choix propre à
 # chaque installation, pas une donnée du dépôt.

@@ -420,13 +420,13 @@ html[data-theme="dark"] .type-badge.not-implemented { background: #451a03; color
 
 .form-field label {
   display: block;
-  font-size: 0.8rem;
+  font-size: 0.9rem;
   font-weight: 600;
   margin-bottom: 0.3rem;
 }
 
 .form-field .help {
-  font-size: 0.75rem;
+  font-size: 0.82rem;
   color: var(--text-muted);
   margin-top: 0.2rem;
 }
@@ -447,7 +447,7 @@ html[data-help="on"] .help { display: block; }
   border-radius: var(--radius);
   background: var(--surface);
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: 1rem;
   font-family: inherit;
   transition: border-color 0.12s, box-shadow 0.12s;
 }
@@ -606,7 +606,7 @@ body.auth-body {
   transition: border-color 0.12s, box-shadow 0.12s, transform 0.08s;
 }
 .settings-tile:hover { border-color: var(--accent); box-shadow: var(--shadow-md); transform: translateY(-1px); text-decoration: none; }
-.settings-tile strong { font-size: 1rem; }
-.settings-tile span { font-size: 0.8rem; color: var(--text-muted); }
+.settings-tile strong { font-size: 1.1rem; }
+.settings-tile span { font-size: 0.88rem; color: var(--text-muted); }
 .settings-tile.disabled { opacity: 0.5; cursor: not-allowed; }
 .settings-tile.disabled:hover { transform: none; box-shadow: var(--shadow-sm); border-color: var(--border); }

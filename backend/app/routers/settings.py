@@ -10,6 +10,7 @@ from app.auth import hash_password, require_admin
 from app.counts import pending_approval_count
 from app.database import get_db
 from app.feature_flags import load_features, save_features
+from app.keycloak_auth import load_keycloak_config, save_keycloak_config, test_keycloak_connection
 from app.ldap_auth import load_ldap_config, save_ldap_config, test_ldap_connection
 from app.models import User, UserRole
 from app.templating import templates
@@ -158,6 +159,50 @@ def ldap_settings_test(
         "search_filter": search_filter.strip() or "(uid={username})",
     }
     success, message = test_ldap_connection(config)
+    return templates.TemplateResponse(
+        request, "_test_result.html", {"success": success, "message": message}
+    )
+
+
+@router.get("/keycloak")
+def keycloak_settings(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request, "settings_keycloak.html",
+        {
+            "config": load_keycloak_config(), "pending_count": pending_approval_count(db),
+            "callback_url": str(request.url_for("keycloak_callback")),
+        },
+    )
+
+
+@router.post("/keycloak")
+def keycloak_settings_save(
+    enabled: str = Form(None),
+    issuer_url: str = Form(""),
+    client_id: str = Form(""),
+    client_secret: str = Form(""),
+    default_role: str = Form("viewer"),
+):
+    config = {
+        "enabled": enabled is not None,
+        "issuer_url": issuer_url.strip(),
+        "client_id": client_id.strip(),
+        "client_secret": client_secret,
+        "default_role": "admin" if default_role == "admin" else "viewer",
+    }
+    save_keycloak_config(config)
+    return RedirectResponse(url="/settings/keycloak", status_code=303)
+
+
+@router.post("/keycloak/test")
+def keycloak_settings_test(
+    request: Request,
+    issuer_url: str = Form(""),
+    client_id: str = Form(""),
+    client_secret: str = Form(""),
+):
+    config = {"issuer_url": issuer_url.strip(), "client_id": client_id.strip(), "client_secret": client_secret}
+    success, message = test_keycloak_connection(config)
     return templates.TemplateResponse(
         request, "_test_result.html", {"success": success, "message": message}
     )
