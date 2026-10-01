@@ -28,6 +28,16 @@ directement sur Internet sans réflexion supplémentaire (voir "Manques réels" 
 - Actions sensibles protégées par confirmation explicite du nom d'utilisateur (pas une
   simple case à cocher) : décocher un playbook obligatoire à l'approbation, activer/
   désactiver une entrée du catalogue — tracé nommément, pas juste "quelqu'un a cliqué".
+- **Verrouillage anti-bruteforce (2026-10-01)**, sur les comptes locaux ET LDAP : 5 échecs
+  -> verrouillage temporaire 1 min, 5 échecs de plus (10 au total) -> compte désactivé,
+  réactivation manuelle par un admin (`/settings/users`). Le tout premier admin créé à
+  `/setup` est marqué "compte de secours" (`is_protected`) : reste soumis au verrouillage
+  temporaire (donc toujours protégé contre le bruteforce), mais jamais désactivable
+  définitivement par ce mécanisme — pour ne jamais perdre tout accès à sa propre
+  installation. Limite assumée : un attaquant peut délibérément faire verrouiller le
+  compte de quelqu'un d'autre en multipliant les échecs sur son identifiant (effet de
+  bord inhérent à tout verrouillage par compte, pas spécifique à cette implémentation) ;
+  pas de limitation par IP source en complément pour l'instant.
 
 ## Secrets
 
@@ -58,6 +68,16 @@ directement sur Internet sans réflexion supplémentaire (voir "Manques réels" 
 - Cookie de session : `SameSite=Lax` (défaut de la librairie) — protection raisonnable
   contre le CSRF pour les requêtes POST cross-site (le cookie n'est pas envoyé), pas de
   jeton CSRF explicite en plus.
+- **HTTPS activable depuis l'interface (2026-10-01)** : `/settings/tls` — certificat
+  auto-signé généré en un clic (`cryptography`, RSA 2048, valide 825 jours) ou import
+  d'un vrai certificat (validé : la clé doit correspondre au certificat avant
+  installation). Bascule poussée en direct à Caddy via son API d'admin (jamais exposée
+  hors du réseau interne docker-compose — pas de `ports:` dessus, voir `Caddyfile`), pas
+  de redémarrage de conteneur nécessaire. Redirection HTTP -> HTTPS automatique une fois
+  activé. Limite assumée : si le conteneur proxy redémarre pour une autre raison, il
+  recharge le Caddyfile statique du dépôt (HTTP) et perd la bascule — revenir sur la page
+  et cliquer "Réappliquer" suffit, pas besoin de reconfigurer le certificat. **Reste
+  désactivé par défaut** (comportement du dépôt inchangé tant que personne ne l'active).
 
 ## Base de données et code applicatif
 
@@ -68,14 +88,6 @@ directement sur Internet sans réflexion supplémentaire (voir "Manques réels" 
 
 ## Manques réels (pas corrigés, à savoir avant un usage sérieux)
 
-- **Pas de TLS/HTTPS par défaut.** Le `Caddyfile` écoute en clair sur le port 80. Sur un
-  LAN de confiance c'est un compromis courant (acceptable) ; au-delà (VPN partagé,
-  a fortiori Internet), le mot de passe de connexion circule en clair. Caddy rend
-  l'HTTPS automatique trivial à activer avec un vrai nom de domaine — pas fait ici car ça
-  suppose une infra DNS/domaine que ce dépôt ne peut pas présumer.
-- **Pas de limitation de tentatives de connexion** (`/login`) — aucun verrou de compte,
-  aucun délai progressif, aucun CAPTCHA. Un identifiant peut être essayé en boucle sans
-  frein applicatif. À corriger avant toute exposition au-delà d'un LAN de confiance.
 - **Conteneurs backend/worker tournent en root** (pas de directive `USER` dans le
   `Dockerfile`) — pratique courante pour un petit projet mais pas la meilleure : en cas de
   compromission applicative, l'attaquant a les droits root *dans le conteneur* (pas sur
@@ -92,6 +104,6 @@ directement sur Internet sans réflexion supplémentaire (voir "Manques réels" 
 
 Solide sur l'essentiel pour un usage labo/petite équipe de confiance (hashing correct,
 rôles appliqués partout, secrets jamais versionnés, clés séparées par usage, canal de
-timing corrigé). Les vrais manques sont concentrés sur le **transport** (pas de TLS par
-défaut) et la **résistance au brute-force** (`/login` sans limite) — les deux points à
-traiter avant d'envisager une exposition au-delà d'un réseau de confiance.
+timing corrigé, verrouillage anti-bruteforce, HTTPS activable en un clic). Le manque
+restant le plus concret est l'exécution des conteneurs en root — pas critique à ce stade,
+mais pas la meilleure pratique.

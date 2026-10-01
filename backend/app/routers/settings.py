@@ -11,6 +11,7 @@ from app.database import get_db
 from app.ldap_auth import load_ldap_config, save_ldap_config, test_ldap_connection
 from app.models import User, UserRole
 from app.templating import templates
+from app.tls import TlsError, apply as tls_apply, cert_info, generate_self_signed, load_state, save_uploaded
 
 router = APIRouter(prefix="/settings", include_in_schema=False, dependencies=[Depends(require_admin)])
 
@@ -143,3 +144,59 @@ def ldap_settings_test(
     return templates.TemplateResponse(
         request, "_test_result.html", {"success": success, "message": message}
     )
+
+
+@router.get("/tls")
+def tls_settings(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request, "settings_tls.html",
+        {
+            "pending_count": pending_approval_count(db),
+            "state": load_state(), "cert": cert_info(),
+            "error": request.query_params.get("error"),
+            "saved": request.query_params.get("saved"),
+        },
+    )
+
+
+@router.post("/tls/generate")
+def tls_generate(common_name: str = Form(...)):
+    common_name = common_name.strip()
+    if not common_name:
+        return RedirectResponse(url="/settings/tls?error=Domaine+ou+IP+requis", status_code=303)
+    try:
+        generate_self_signed(common_name)
+        tls_apply(True)
+    except TlsError as exc:
+        return RedirectResponse(url=f"/settings/tls?error={exc}", status_code=303)
+    return RedirectResponse(url="/settings/tls?saved=1", status_code=303)
+
+
+@router.post("/tls/upload")
+def tls_upload(cert_pem: str = Form(...), key_pem: str = Form(...)):
+    try:
+        save_uploaded(cert_pem, key_pem)
+        tls_apply(True)
+    except TlsError as exc:
+        return RedirectResponse(url=f"/settings/tls?error={exc}", status_code=303)
+    return RedirectResponse(url="/settings/tls?saved=1", status_code=303)
+
+
+@router.post("/tls/disable")
+def tls_disable():
+    try:
+        tls_apply(False)
+    except TlsError as exc:
+        return RedirectResponse(url=f"/settings/tls?error={exc}", status_code=303)
+    return RedirectResponse(url="/settings/tls?saved=1", status_code=303)
+
+
+@router.post("/tls/reapply")
+def tls_reapply():
+    """Repousse l'état voulu (mémorisé) à Caddy — utile si le conteneur proxy a
+    redémarré entre-temps et a rechargé le Caddyfile statique (HTTP) du dépôt."""
+    try:
+        tls_apply(load_state().get("enabled", False))
+    except TlsError as exc:
+        return RedirectResponse(url=f"/settings/tls?error={exc}", status_code=303)
+    return RedirectResponse(url="/settings/tls?saved=1", status_code=303)

@@ -43,6 +43,7 @@ services:
       - ./config:/app/config:z
       - ./.secrets:/app/.secrets:ro
       - ansible_playbooks:/app/ansible-playbooks:ro
+      - tls_certs:/data/tls
     ports:
       - "8000:8000"
     depends_on:
@@ -80,8 +81,12 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
+      - "443:443"
+      # Pas de port publié pour 2019 (API d'admin) — volontairement, voir Caddyfile.
+      # Reste joignable uniquement depuis les autres conteneurs du réseau interne.
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro,z
+      - tls_certs:/data/tls:ro
     depends_on:
       - backend
 
@@ -91,3 +96,4 @@ volumes:
   terraform_runs:
   terraform_plugin_cache:
   ansible_playbooks:
+  tls_certs:

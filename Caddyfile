@@ -1,3 +1,13 @@
+{
+	# API d'admin Caddy, utilisée par le backend pour pousser une nouvelle config en
+	# direct quand on active/désactive le HTTPS depuis /settings/tls (POST /load) — sans
+	# ça il faudrait redémarrer le conteneur proxy à chaque changement. Jamais exposée
+	# hors du réseau interne docker-compose (pas de "ports:" dessus dans
+	# docker-compose.yml) : seul le conteneur backend peut l'atteindre, par son nom DNS
+	# interne "proxy:2019".
+	admin 0.0.0.0:2019
+}
+
 :80 {
 	header {
 		X-Content-Type-Options nosniff

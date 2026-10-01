@@ -1,0 +1,90 @@
+{% extends "base.html" %}
+{% block title %}Certificat (HTTPS) — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings">&larr; Retour aux paramètres</a>
+
+<div class="page-header"><h2>Certificat — HTTPS</h2></div>
+
+<div class="help" style="margin: 0 0 1rem;">
+  Par défaut l'app répond en clair sur le port 80 — le mot de passe de connexion circule
+  en clair sur le réseau. Active le HTTPS ici : certificat auto-signé généré en un clic
+  (le navigateur affichera un avertissement la première fois, normal pour un certificat
+  auto-signé — à accepter une fois), ou importe le tien si tu en as un vrai.
+</div>
+
+{% if error %}<div class="error-box" style="margin: 0 0 1rem;">{{ error }}</div>{% endif %}
+{% if saved %}<div class="test-result ok" style="margin: 0 0 1rem;">Config appliquée.</div>{% endif %}
+
+<div class="card" style="margin-bottom: 1.25rem;">
+  <h3>État actuel</h3>
+  <div style="padding: 0 1.25rem 1.25rem;">
+    <p>
+      HTTPS :
+      {% if state.enabled %}
+        <span class="dot on"></span> <strong>activé</strong> (port 443)
+      {% else %}
+        <span class="dot off"></span> <strong>désactivé</strong> (port 80 en clair)
+      {% endif %}
+    </p>
+    {% if cert %}
+    <p>
+      Certificat installé : <span class="mono">{{ cert.subject }}</span>
+      {% if cert.self_signed %}<span class="type-badge">auto-signé</span>{% endif %}<br>
+      Valide du {{ cert.not_valid_before.strftime("%Y-%m-%d") }} au
+      {{ cert.not_valid_after.strftime("%Y-%m-%d") }}
+    </p>
+    {% else %}
+    <p class="help">Aucun certificat installé pour l'instant.</p>
+    {% endif %}
+    <div class="form-actions" style="padding: 0;">
+      {% if state.enabled %}
+      <form method="post" action="/settings/tls/disable">
+        <button type="submit" class="btn btn-secondary">Repasser en HTTP</button>
+      </form>
+      {% endif %}
+      <form method="post" action="/settings/tls/reapply">
+        <button type="submit" class="btn btn-secondary">Réappliquer</button>
+      </form>
+    </div>
+    <div class="help" style="margin-top: 0.5rem;">
+      "Réappliquer" : si le conteneur proxy a redémarré depuis la dernière activation, il
+      a rechargé la config HTTP de base — un clic ici relance l'état voulu sans tout
+      reconfigurer.
+    </div>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 1.25rem;">
+  <h3>Générer un certificat auto-signé</h3>
+  <form method="post" action="/settings/tls/generate" class="form-grid">
+    <div class="form-field">
+      <label>Domaine ou IP utilisé pour accéder à l'app</label>
+      <input type="text" name="common_name" required placeholder="ex : 192.168.1.50 ou hephaestus.monlab.local">
+      <div class="help">
+        Doit correspondre à l'adresse tapée dans le navigateur, sinon le navigateur
+        affichera un avertissement en plus de celui, normal, sur le certificat auto-signé.
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">Générer et activer</button>
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  <h3>Importer un certificat existant</h3>
+  <form method="post" action="/settings/tls/upload" class="form-grid">
+    <div class="form-field">
+      <label>Certificat (PEM)</label>
+      <textarea name="cert_pem" rows="8" class="mono" required placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+    </div>
+    <div class="form-field">
+      <label>Clé privée (PEM)</label>
+      <textarea name="key_pem" rows="8" class="mono" required placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">Importer et activer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
