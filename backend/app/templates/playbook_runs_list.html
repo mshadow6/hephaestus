@@ -1,0 +1,64 @@
+{% extends "base.html" %}
+{% block title %}{{ "Historique — " + playbook_def.label if playbook_def else "Exécutions de playbooks" }} — Hephaestus{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Playbooks{{ " — " + playbook_def.label if playbook_def else "" }}</h2>
+  <a class="btn" href="/playbooks/deploy">+ Déployer un playbook</a>
+</div>
+<div class="subnav">
+  <a href="/playbooks">Catalogue</a>
+  <a href="/playbooks/deploy">Déploiement infra</a>
+  <a href="/playbooks/inventory">Inventaire</a>
+  <a href="/playbooks/runs" {% if not playbook_filter %}class="active"{% endif %}>Historique</a>
+</div>
+{% if playbook_filter %}
+<div class="help" style="margin-bottom:1rem;">
+  Filtré sur <strong>{{ playbook_def.label if playbook_def else playbook_filter }}</strong> —
+  <a href="/playbooks/runs">voir tout l'historique</a>.
+</div>
+{% endif %}
+
+<div class="card">
+  {% if runs %}
+  <table>
+    <thead>
+      <tr>
+        <th>Playbook</th>
+        <th>Cibles</th>
+        <th>Options</th>
+        <th>Statut</th>
+        <th>Lancé par</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for run in runs %}
+      <tr>
+        <td><a href="/playbooks/runs/{{ run.id }}" class="playbook-name">{{ run.playbook_label }}</a></td>
+        <td class="mono">
+          {% if run.target_hostnames.group %}groupe:{{ run.target_hostnames.group }}{% endif %}
+          {% if run.target_hostnames.manual %}{{ ' + ' if run.target_hostnames.group else '' }}{{ run.target_hostnames.manual | join(", ") }}{% endif %}
+        </td>
+        <td>
+          {% if run.dry_run %}<span class="type-badge">dry-run</span>{% endif %}
+          {% if run.verbose %}<span class="type-badge">-vvvv</span>{% endif %}
+        </td>
+        <td><span class="badge status-{{ run.status.value }}">{{ run.status.value | status_label }}</span></td>
+        <td>{{ run.launched_by or "—" }}</td>
+        <td>{{ run.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% if not show_all and total > runs|length %}
+  <div style="padding: 1rem 1.25rem;">
+    <a href="/playbooks/runs?show_all=true{{ '&playbook=' + playbook_filter if playbook_filter else '' }}">
+      Voir tout l'historique ({{ total }} exécutions)
+    </a>
+  </div>
+  {% endif %}
+  {% else %}
+  <div class="empty-state">Aucune exécution pour l'instant.</div>
+  {% endif %}
+</div>
+{% endblock %}

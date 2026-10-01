@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Connexion — Hephaestus</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version() }}">
+  <script>
+    (function () {
+      var saved = localStorage.getItem("theme");
+      var theme = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+  </script>
+</head>
+<body class="auth-body">
+  <main class="auth-page">
+    <div class="auth-brand">
+      <svg class="brand-mark" viewBox="0 0 52 40" fill="currentColor" aria-hidden="true">
+        <polygon points="10,15 10,21 0,18"/>
+        <rect x="10" y="12" width="32" height="10" rx="2"/>
+        <rect x="20" y="22" width="12" height="7"/>
+        <rect x="12" y="29" width="28" height="7" rx="1"/>
+      </svg>
+      <h1>Hephaestus</h1>
+    </div>
+    <div class="card auth-card">
+      {% if error %}<div class="error-box" style="margin:1.25rem 1.25rem 0">{{ error }}</div>{% endif %}
+      <form method="post" action="/login">
+        <div class="form-grid">
+          <input type="hidden" name="next" value="{{ next }}">
+          <div class="form-field">
+            <label for="username">Identifiant</label>
+            <input type="text" id="username" name="username" required autofocus>
+          </div>
+          <div class="form-field">
+            <label for="password">Mot de passe</label>
+            <input type="password" id="password" name="password" required>
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="submit" class="btn">Se connecter</button>
+        </div>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

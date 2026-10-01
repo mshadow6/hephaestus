@@ -1,0 +1,77 @@
+{% extends "base.html" %}
+{% block title %}Playbooks — Hephaestus{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Playbooks</h2>
+  <a class="btn" href="/playbooks/new">+ Ajouter un playbook</a>
+</div>
+
+<div class="subnav">
+  <a href="/playbooks" class="active">Catalogue</a>
+  <a href="/playbooks/deploy">Déploiement infra</a>
+  <a href="/playbooks/inventory">Inventaire</a>
+  <a href="/playbooks/runs">Historique</a>
+</div>
+
+{% if error %}
+<div class="error-box" style="margin: 0 0 1rem;">{{ error }}</div>
+{% endif %}
+
+<div class="help" style="margin-bottom: 1rem;">
+  Ce catalogue liste les playbooks proposés à l'approbation d'une VM (obligatoire ou
+  optionnel) et pour le déploiement à la demande. La sécurisation SSH de base (création
+  du compte admin, fermeture de l'accès root) n'y figure pas : elle est automatique et
+  s'applique à chaque VM créée, sans configuration possible.
+</div>
+
+{% for cat in ["mandatory", "optional"] %}
+{% set cat_playbooks = playbooks | selectattr("category", "equalto", cat) | list %}
+<div class="card" style="margin-bottom: 1.25rem;">
+  <div class="section-title" style="margin: 1rem 0 0.25rem 1.25rem;">{{ category_labels.get(cat, cat) }}</div>
+  {% if cat_playbooks %}
+  <table>
+    <thead>
+      <tr>
+        <th>Nom</th>
+        <th>Chemin dans le repo</th>
+        <th>Statut</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for p in cat_playbooks %}
+      <tr>
+        <td>
+          <a href="/playbooks/{{ p.key }}/edit" class="playbook-name">{{ p.label }}</a>
+          {% if p.description %}<div class="category-hint">{{ p.description }}</div>{% endif %}
+        </td>
+        <td class="mono">{{ p.repo_path }}</td>
+        <td>
+          <span class="dot {{ 'on' if p.enabled else 'off' }}"></span>
+          {{ "activé" if p.enabled else "désactivé" }}
+        </td>
+        <td style="white-space: nowrap;">
+          <a class="btn btn-sm btn-secondary" href="/playbooks/runs?playbook={{ p.key }}">Historique</a>
+          <form method="post" action="/playbooks/{{ p.key }}/toggle-enabled"
+                onsubmit="return promptConfirmUsername(this, '{{ current_username }}', '{{ 'Désactiver' if p.enabled else 'Activer' }} {{ p.label }}');"
+                style="display:inline">
+            <input type="hidden" name="confirm_username" value="">
+            <button class="btn btn-sm btn-secondary" type="submit">
+              {{ "Désactiver" if p.enabled else "Activer" }}
+            </button>
+          </form>
+          <form method="post" action="/playbooks/{{ p.key }}/delete"
+                onsubmit="return confirm('Supprimer le playbook {{ p.label }} ?');" style="display:inline">
+            <button class="btn btn-sm btn-danger" type="submit">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">Aucun playbook {{ category_labels.get(cat, cat).lower() }} pour l'instant.</div>
+  {% endif %}
+</div>
+{% endfor %}
+{% endblock %}

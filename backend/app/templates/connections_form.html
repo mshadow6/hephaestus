@@ -1,0 +1,88 @@
+{% extends "base.html" %}
+{% block title %}{{ "Nouvelle connexion" if is_new else conn.name }} — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/connections">&larr; Retour aux connexions</a>
+
+<div class="card">
+  <form method="post" action="{{ '/connections/new' if is_new else '/connections/' + conn.name + '/edit' }}">
+    <div class="form-grid">
+
+      {% if is_new %}
+      <div class="form-field">
+        <label>Catégorie</label>
+        <div class="value">
+          <span class="type-badge">{{ category_label }}</span>
+          <a class="change-category-link" href="/connections/new">changer</a>
+        </div>
+      </div>
+
+      <div class="form-field">
+        <label for="name">Nom de la connexion</label>
+        <input type="text" id="name" name="name" required pattern="[a-z0-9][a-z0-9-]{1,62}"
+               placeholder="ex: phpipam-homelab">
+        <div class="help">Minuscules, chiffres, tirets. Sert de nom de fichier.</div>
+      </div>
+
+      <div class="form-field">
+        <label>Type de provider</label>
+        <div class="type-picker">
+          {% for key, p in provider_types.items() %}
+          <label>
+            <input type="radio" name="type" value="{{ key }}"
+                   {% if key == selected_type %}checked{% endif %}
+                   hx-get="/connections/new/fields?category={{ category }}&type={{ key }}"
+                   hx-target="#connection-fields" hx-swap="outerHTML">
+            <span>{{ p.label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+      {% else %}
+      <div class="form-field">
+        <label>Nom</label>
+        <div class="value mono">{{ conn.name }}</div>
+        <input type="hidden" name="name" value="{{ conn.name }}">
+      </div>
+      <div class="form-field">
+        <label>Type</label>
+        <div class="value"><span class="type-badge">{{ provider_types[conn.type].label }}</span></div>
+        <input type="hidden" name="type" value="{{ conn.type }}">
+      </div>
+      {% endif %}
+
+      {% include "_connection_fields.html" %}
+
+      <div class="form-field checkbox-field">
+        <label>
+          <input type="checkbox" name="enabled" {% if conn is none or conn.enabled %}checked{% endif %}>
+          Connexion activée
+        </label>
+      </div>
+
+      <div class="form-field checkbox-field">
+        <label>
+          <input type="checkbox" name="active" {% if conn is not none and conn.active %}checked{% endif %}>
+          Utiliser comme connexion active pour cette catégorie
+        </label>
+        <div class="help">
+          Une seule connexion active par catégorie (IPAM, DNS, hyperviseur, ...) — c'est
+          celle-là que le pipeline de provisioning utilise réellement. La cocher désactive
+          automatiquement l'ancienne connexion active de la même catégorie.
+        </div>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn">{{ "Créer" if is_new else "Enregistrer" }}</button>
+      <button type="button" class="btn btn-secondary"
+              hx-post="/connections/test"
+              hx-include="closest form"
+              hx-target="#test-result-slot"
+              hx-swap="innerHTML">
+        Tester la connexion
+      </button>
+    </div>
+    <div id="test-result-slot"></div>
+  </form>
+</div>
+{% endblock %}

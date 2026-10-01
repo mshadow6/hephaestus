@@ -1,0 +1,129 @@
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi.responses import RedirectResponse
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.auth import hash_password, require_admin
+from app.counts import pending_approval_count
+from app.database import get_db
+from app.ldap_auth import load_ldap_config, save_ldap_config, test_ldap_connection
+from app.models import User, UserRole
+from app.templating import templates
+
+router = APIRouter(prefix="/settings", include_in_schema=False, dependencies=[Depends(require_admin)])
+
+
+
+@router.get("")
+def settings_home(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request, "settings.html", {"pending_count": pending_approval_count(db)}
+    )
+
+
+@router.get("/users")
+def users_list(request: Request, db: Session = Depends(get_db)):
+    users = db.scalars(select(User).order_by(User.username)).all()
+    return templates.TemplateResponse(
+        request, "settings_users.html",
+        {"users": users, "roles": UserRole, "pending_count": pending_approval_count(db), "error": None},
+    )
+
+
+@router.post("/users")
+def users_create(
+    request: Request,
+    username: str = Form(...),
+    password: str = Form(...),
+    role: str = Form("viewer"),
+    db: Session = Depends(get_db),
+):
+    username = username.strip()
+    role_enum = UserRole.admin if role == "admin" else UserRole.viewer
+
+    def _error(message: str):
+        users = db.scalars(select(User).order_by(User.username)).all()
+        return templates.TemplateResponse(
+            request, "settings_users.html",
+            {"users": users, "roles": UserRole, "pending_count": pending_approval_count(db),
+             "error": message},
+        )
+
+    if len(password) < 8:
+        return _error("Le mot de passe doit faire au moins 8 caractères.")
+    if db.scalar(select(User).where(User.username == username)) is not None:
+        return _error(f"L'utilisateur '{username}' existe déjà.")
+
+    db.add(User(username=username, password_hash=hash_password(password), role=role_enum, source="local"))
+    db.commit()
+    return RedirectResponse(url="/settings/users", status_code=303)
+
+
+@router.post("/users/{user_id}/delete")
+def users_delete(user_id: int, request: Request, db: Session = Depends(get_db)):
+    current = request.session.get("user") or {}
+    if current.get("id") == user_id:
+        raise HTTPException(status_code=400, detail="Impossible de supprimer son propre compte")
+
+    user = db.get(User, user_id)
+    if user is not None:
+        db.delete(user)
+        db.commit()
+    return RedirectResponse(url="/settings/users", status_code=303)
+
+
+@router.get("/ldap")
+def ldap_settings(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request, "settings_ldap.html",
+        {"config": load_ldap_config(), "pending_count": pending_approval_count(db)},
+    )
+
+
+@router.post("/ldap")
+def ldap_settings_save(
+    request: Request,
+    enabled: str = Form(None),
+    server: str = Form(""),
+    use_tls: str = Form(None),
+    bind_dn: str = Form(""),
+    bind_password: str = Form(""),
+    search_base: str = Form(""),
+    search_filter: str = Form("(uid={username})"),
+    db: Session = Depends(get_db),
+):
+    config = {
+        "enabled": enabled is not None,
+        "server": server.strip(),
+        "use_tls": use_tls is not None,
+        "bind_dn": bind_dn.strip(),
+        "bind_password": bind_password,
+        "search_base": search_base.strip(),
+        "search_filter": search_filter.strip() or "(uid={username})",
+    }
+    save_ldap_config(config)
+    return RedirectResponse(url="/settings/ldap", status_code=303)
+
+
+@router.post("/ldap/test")
+def ldap_settings_test(
+    request: Request,
+    server: str = Form(""),
+    use_tls: str = Form(None),
+    bind_dn: str = Form(""),
+    bind_password: str = Form(""),
+    search_base: str = Form(""),
+    search_filter: str = Form("(uid={username})"),
+):
+    config = {
+        "server": server.strip(),
+        "use_tls": use_tls is not None,
+        "bind_dn": bind_dn.strip(),
+        "bind_password": bind_password,
+        "search_base": search_base.strip(),
+        "search_filter": search_filter.strip() or "(uid={username})",
+    }
+    success, message = test_ldap_connection(config)
+    return templates.TemplateResponse(
+        request, "_test_result.html", {"success": success, "message": message}
+    )

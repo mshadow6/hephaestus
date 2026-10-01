@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}Création de VM — Hephaestus{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Création de VM — En attente</h2>
+</div>
+
+<div class="card">
+  {% if pending_approval %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Hostname</th>
+        <th>Template</th>
+        <th>CPU/RAM/Disque</th>
+        <th>VLAN</th>
+        <th>Ticket GLPI</th>
+        <th>Demandé le</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in pending_approval %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td><a href="/vm/{{ r.id }}">{{ r.hostname }}</a></td>
+        <td class="mono">{{ r.os_template or "—" }}</td>
+        <td>{{ r.cpu or "?" }} vCPU / {{ r.ram_gb or "?" }} Go / {{ r.disk_gb or "?" }} Go</td>
+        <td class="mono">{{ r.vlan or "—" }}</td>
+        <td>
+          {% if r.glpi_ticket_id and glpi_base_url %}
+          <a href="{{ glpi_base_url }}/front/change.form.php?id={{ r.glpi_ticket_id }}" target="_blank" rel="noopener">#{{ r.glpi_ticket_id }}</a>
+          {% else %}
+          {{ r.glpi_ticket_id or "—" }}
+          {% endif %}
+        </td>
+        <td>{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td>
+          {% if request.session.get('user', {}).get('role') == 'admin' %}
+          <a href="/vm/{{ r.id }}/approve" class="btn btn-sm">Approuver</a>
+          <form method="post" action="/vm/{{ r.id }}/reject"
+                onsubmit="return promptRejectReason(this);" style="display:inline">
+            <input type="hidden" name="next" value="/validations">
+            <input type="hidden" name="reason" value="">
+            <button type="submit" class="btn btn-sm btn-danger">Rejeter</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">Aucune demande en attente — tout est traité.</div>
+  {% endif %}
+</div>
+
+<div class="section-title">Dernières créations (10 plus récentes)</div>
+<div class="card">
+  {% if recent %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Hostname</th>
+        <th>Statut</th>
+        <th>Approuvé par</th>
+        <th>Ticket GLPI</th>
+        <th>Créé le</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in recent %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td><a href="/vm/{{ r.id }}">{{ r.hostname }}</a></td>
+        <td><span class="badge status-{{ r.status.value }}">{{ r.status.value | status_label }}</span></td>
+        <td>{{ r.approved_by or "—" }}</td>
+        <td>
+          {% if r.glpi_ticket_id and glpi_base_url %}
+          <a href="{{ glpi_base_url }}/front/change.form.php?id={{ r.glpi_ticket_id }}" target="_blank" rel="noopener">#{{ r.glpi_ticket_id }}</a>
+          {% else %}
+          {{ r.glpi_ticket_id or "—" }}
+          {% endif %}
+        </td>
+        <td class="mono">{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="padding: 1rem 1.25rem;">
+    <a href="/deployments">Voir l'historique complet</a>
+  </div>
+  {% else %}
+  <div class="empty-state">Aucune création pour l'instant.</div>
+  {% endif %}
+</div>
+{% endblock %}

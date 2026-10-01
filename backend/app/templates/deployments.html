@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Historique des déploiements — Hephaestus{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Historique des déploiements</h2>
+</div>
+
+<div class="card" style="margin-bottom: 1.25rem;">
+  <form method="get" action="/deployments" class="form-grid" style="flex-direction: row; align-items: flex-end; flex-wrap: wrap; max-width: none; padding: 1rem 1.25rem;">
+    <div class="form-field" style="flex: 1; min-width: 200px;">
+      <label for="q">Recherche par nom</label>
+      <input type="text" id="q" name="q" value="{{ q }}" placeholder="ex: vm-demo">
+    </div>
+    <div class="form-field" style="min-width: 200px;">
+      <label for="status">Statut</label>
+      <select id="status" name="status">
+        <option value="">— Tous —</option>
+        {% for s in all_statuses %}
+        <option value="{{ s }}" {% if s == status_filter %}selected{% endif %}>{{ s | status_label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="form-field" style="flex-shrink: 0;">
+      <button type="submit" class="btn">Filtrer</button>
+      {% if status_filter or q %}<a href="/deployments" class="btn btn-secondary">Réinitialiser</a>{% endif %}
+    </div>
+  </form>
+</div>
+
+<div class="card">
+  {% if requests %}
+  <table>
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Hostname</th>
+        <th>Statut</th>
+        <th>IP</th>
+        <th>Approuvé par</th>
+        <th>Ticket GLPI</th>
+        <th>Créé</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in requests %}
+      <tr>
+        <td>{{ r.id }}</td>
+        <td><a href="/vm/{{ r.id }}">{{ r.hostname }}</a></td>
+        <td><span class="badge status-{{ r.status.value }}">{{ r.status.value | status_label }}</span></td>
+        <td class="mono">{{ r.ip_address or "—" }}</td>
+        <td>{{ r.approved_by or "—" }}</td>
+        <td>
+          {% if r.glpi_ticket_id and glpi_base_url %}
+          <a href="{{ glpi_base_url }}/front/change.form.php?id={{ r.glpi_ticket_id }}" target="_blank" rel="noopener">#{{ r.glpi_ticket_id }}</a>
+          {% else %}
+          {{ r.glpi_ticket_id or "—" }}
+          {% endif %}
+        </td>
+        <td class="mono">{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">Aucun déploiement ne correspond à ces filtres.</div>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,93 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: vmprov-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-vmprov}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vmprov}
+      POSTGRES_DB: ${POSTGRES_DB:-vmprovisioning}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vmprov}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: vmprov-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    container_name: vmprov-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vmprov}:${POSTGRES_PASSWORD:-vmprov}@postgres:5432/${POSTGRES_DB:-vmprovisioning}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ./config:/app/config:z
+      - ./.secrets:/app/.secrets:ro
+      - ansible_playbooks:/app/ansible-playbooks:ro
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: ./backend
+    container_name: vmprov-worker
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vmprov}:${POSTGRES_PASSWORD:-vmprov}@postgres:5432/${POSTGRES_DB:-vmprovisioning}
+      REDIS_URL: redis://redis:6379/0
+      TF_PLUGIN_CACHE_DIR: /app/.terraform.d/plugin-cache
+    volumes:
+      - ./terraform:/app/terraform:ro
+      - terraform_runs:/app/terraform-runs
+      - terraform_plugin_cache:/app/.terraform.d/plugin-cache
+      - ./.secrets:/app/.secrets:ro
+      - ansible_playbooks:/app/ansible-playbooks
+      - ./config:/app/config:z
+    command: python worker.py
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  proxy:
+    image: caddy:2-alpine
+    container_name: vmprov-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:
+  redis_data:
+  terraform_runs:
+  terraform_plugin_cache:
+  ansible_playbooks:

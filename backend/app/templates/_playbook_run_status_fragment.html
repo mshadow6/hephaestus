@@ -1,0 +1,30 @@
+{% set terminal_statuses = ["success", "failed"] %}
+<div id="run-status-fragment"
+     {% if run.status.value not in terminal_statuses %}
+     hx-get="/playbooks/runs/{{ run.id }}/status-fragment"
+     hx-trigger="every 2s"
+     hx-swap="outerHTML"
+     {% endif %}>
+  <div class="detail-grid">
+    <div class="field">
+      <label>Statut</label>
+      <div class="value"><span class="badge status-{{ run.status.value }}">{{ run.status.value | status_label }}</span></div>
+    </div>
+    <div class="field">
+      <label>Terminé le</label>
+      <div class="value">{{ run.finished_at.strftime("%Y-%m-%d %H:%M:%S") if run.finished_at else "—" }}</div>
+    </div>
+  </div>
+  {% if run.output %}
+  <div class="form-field">
+    <label>Sortie {% if run.status.value not in terminal_statuses %}(en direct){% endif %}</label>
+    <pre class="log-output" id="run-log-{{ run.id }}">{{ run.output }}</pre>
+  </div>
+  <script>
+    (function () {
+      var el = document.getElementById("run-log-{{ run.id }}");
+      if (el) el.scrollTop = el.scrollHeight;
+    })();
+  </script>
+  {% endif %}
+</div>

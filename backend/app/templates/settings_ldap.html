@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}LDAP/LDAPS — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings">&larr; Retour aux paramètres</a>
+
+<div class="page-header"><h2>Authentification LDAP/LDAPS</h2></div>
+
+<div class="card">
+  <form method="post" action="/settings/ldap">
+    <div class="form-grid">
+      <div class="form-field checkbox-field">
+        <label>
+          <input type="checkbox" name="enabled" {% if config.enabled %}checked{% endif %}>
+          Activer l'authentification LDAP (en complément des comptes locaux)
+        </label>
+      </div>
+      <div class="form-field">
+        <label for="server">URL du serveur</label>
+        <input type="text" id="server" name="server" value="{{ config.server }}"
+               placeholder="ldaps://dc.example.local:636">
+        <div class="help">ldap:// (non chiffré) ou ldaps:// (recommandé).</div>
+      </div>
+      <div class="form-field checkbox-field">
+        <label>
+          <input type="checkbox" name="use_tls" {% if config.use_tls %}checked{% endif %}>
+          Forcer TLS
+        </label>
+      </div>
+      <div class="form-field">
+        <label for="bind_dn">Bind DN (compte de service)</label>
+        <input type="text" id="bind_dn" name="bind_dn" value="{{ config.bind_dn }}"
+               placeholder="cn=svc-vmprov,ou=services,dc=example,dc=local">
+        <div class="help">Vide = bind anonyme pour la recherche (rare, à éviter si possible).</div>
+      </div>
+      <div class="form-field">
+        <label for="bind_password">Mot de passe du compte de service</label>
+        <input type="password" id="bind_password" name="bind_password" value="{{ config.bind_password }}">
+      </div>
+      <div class="form-field">
+        <label for="search_base">Base de recherche</label>
+        <input type="text" id="search_base" name="search_base" value="{{ config.search_base }}"
+               placeholder="ou=users,dc=example,dc=local">
+      </div>
+      <div class="form-field">
+        <label for="search_filter">Filtre de recherche</label>
+        <input type="text" id="search_filter" name="search_filter" value="{{ config.search_filter }}">
+        <div class="help">
+          <code>{username}</code> est remplacé par l'identifiant saisi au login.
+          Ex: <code>(uid={username})</code> (OpenLDAP/FreeIPA) ou
+          <code>(sAMAccountName={username})</code> (Active Directory).
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">Enregistrer</button>
+      <button type="button" class="btn btn-secondary"
+              hx-post="/settings/ldap/test"
+              hx-include="closest form"
+              hx-target="#test-result-slot"
+              hx-swap="innerHTML">
+        Tester la connexion
+      </button>
+    </div>
+    <div id="test-result-slot"></div>
+  </form>
+</div>
+
+<div class="section-title" style="margin-left:0">Comment ça marche</div>
+<div class="card" style="padding:1.25rem; font-size:0.85rem; color:var(--text-muted)">
+  <p>Au login, si l'identifiant ne correspond à aucun compte local, l'application recherche
+  l'utilisateur dans l'annuaire puis tente un bind avec le mot de passe saisi. En cas de
+  succès, un compte "fantôme" est créé automatiquement (rôle <strong>Lecture seule</strong>
+  par défaut) — un admin peut ensuite le promouvoir Admin depuis
+  <a href="/settings/users">Utilisateurs</a>.</p>
+  <p style="margin-bottom:0">Le bouton "Tester la connexion" vérifie seulement la
+  joignabilité du serveur et le bind du compte de service — pas l'authentification d'un
+  utilisateur final.</p>
+</div>
+{% endblock %}

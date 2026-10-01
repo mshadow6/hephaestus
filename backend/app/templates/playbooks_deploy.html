@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}Déployer un playbook — Hephaestus{% endblock %}
+{% block content %}
+<div class="page-header"><h2>Playbooks</h2></div>
+<div class="subnav">
+  <a href="/playbooks">Catalogue</a>
+  <a href="/playbooks/deploy" class="active">Déploiement infra</a>
+  <a href="/playbooks/inventory">Inventaire</a>
+  <a href="/playbooks/runs">Historique</a>
+</div>
+
+<div class="card">
+  <h3>Déployer un playbook à la demande</h3>
+  <div class="help" style="padding: 0 1.25rem;">
+    Cible un <strong>groupe</strong> de l'<a href="/playbooks/inventory">inventaire</a>
+    (édité à la main ou régénéré depuis Proxmox) et/ou des cibles saisies manuellement.
+    Ansible s'y connecte avec la clé SSH d'automatisation de cet outil, qui doit déjà être
+    autorisée sur le serveur cible (compte admin) — sinon la connexion échoue.
+  </div>
+
+  {% if not playbooks %}
+  <div class="empty-state">Aucun playbook au catalogue — <a href="/playbooks/new">en ajouter un</a>.</div>
+  {% else %}
+  <form method="post" action="/playbooks/deploy">
+    <div class="form-grid">
+      <div class="form-field">
+        <label>Playbooks (un ou plusieurs — exécutés dans l'ordre)</label>
+        {% for p in playbooks %}
+        <div class="playbook-row">
+          <label>
+            <input type="checkbox" name="playbook_keys" value="{{ p.key }}">
+            {{ p.label }}
+          </label>
+          {% if p.description %}
+          <span class="info-note" title="{{ p.description }}">ⓘ</span>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+
+      <div class="form-field">
+        <label for="group">Groupe de l'inventaire</label>
+        <select id="group" name="group">
+          <option value="">— aucun (cible manuelle uniquement) —</option>
+          <option value="all">all (tout l'inventaire)</option>
+          {% for g in groups %}
+          <option value="{{ g }}">{{ g }}</option>
+          {% endfor %}
+        </select>
+        {% if not groups %}
+        <div class="help">
+          Inventaire vide — <a href="/playbooks/inventory">régénère-le depuis Proxmox</a>
+          ou ajoute des hôtes à la main.
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="form-field">
+        <label for="manual_targets">Cibles manuelles en plus (IP ou nom DNS, une par ligne)</label>
+        <textarea id="manual_targets" name="manual_targets" rows="3" placeholder="192.0.2.50&#10;srv-legacy.example.local"></textarea>
+      </div>
+
+      <div class="form-field checkbox-field">
+        <label>
+          <input type="checkbox" name="dry_run">
+          Dry-run (<code>--check --diff</code>) — simule sans rien changer
+        </label>
+      </div>
+      <div class="form-field checkbox-field">
+        <label>
+          <input type="checkbox" name="verbose">
+          Debug détaillé (<code>-vvvv</code>) — sortie complète, utile si ça échoue
+        </label>
+      </div>
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn">Lancer</button>
+    </div>
+  </form>
+  {% endif %}
+</div>
+{% endblock %}

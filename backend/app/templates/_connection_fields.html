@@ -1,0 +1,29 @@
+<div id="connection-fields">
+  {% set provider = provider_types[selected_type] %}
+  {% for f in provider.fields %}
+  <div class="form-field {{ 'checkbox-field' if f.input_type == 'checkbox' else '' }}">
+    {% set current = conn.config.get(f.name) if conn else None %}
+    {% if f.input_type == "checkbox" %}
+      <label>
+        <input type="checkbox" name="{{ f.name }}"
+               {% if (current is none and f.default) or current %}checked{% endif %}>
+        {{ f.label }}
+      </label>
+    {% elif f.input_type == "password" %}
+      <label for="field-{{ f.name }}">{{ f.label }}{% if f.required and not current %} *{% endif %}</label>
+      <input type="password" id="field-{{ f.name }}" name="{{ f.name }}"
+             value=""
+             placeholder="{{ '•••••••• (laisser vide pour ne pas changer)' if current else '' }}"
+             autocomplete="new-password"
+             {% if f.required and not current %}required{% endif %}>
+      {% if current %}<div class="help">Une valeur est déjà enregistrée — laisse vide pour la garder.</div>{% endif %}
+    {% else %}
+      <label for="field-{{ f.name }}">{{ f.label }}{% if f.required %} *{% endif %}</label>
+      <input type="{{ f.input_type }}" id="field-{{ f.name }}" name="{{ f.name }}"
+             value="{{ current if current is not none else '' }}"
+             {% if f.required %}required{% endif %}>
+    {% endif %}
+    {% if f.help_text %}<div class="help">{{ f.help_text }}</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>

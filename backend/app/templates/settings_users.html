@@ -1,0 +1,62 @@
+{% extends "base.html" %}
+{% block title %}Utilisateurs — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings">&larr; Retour aux paramètres</a>
+
+<div class="page-header"><h2>Utilisateurs</h2></div>
+
+<div class="card">
+  {% if users %}
+  <table>
+    <thead><tr><th>Identifiant</th><th>Rôle</th><th>Source</th><th>Créé le</th><th></th></tr></thead>
+    <tbody>
+      {% for u in users %}
+      <tr>
+        <td>{{ u.username }}</td>
+        <td><span class="type-badge">{{ "Admin" if u.role.value == "admin" else "Lecture seule" }}</span></td>
+        <td class="mono">{{ u.source }}</td>
+        <td>{{ u.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td>
+          <form method="post" action="/settings/users/{{ u.id }}/delete"
+                onsubmit="return confirm('Supprimer l\'utilisateur {{ u.username }} ?');" style="display:inline">
+            <button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">Aucun utilisateur.</div>
+  {% endif %}
+</div>
+
+<div class="section-title" style="margin-left:0">Ajouter un utilisateur local</div>
+<div class="card">
+  {% if error %}<div class="error-box">{{ error }}</div>{% endif %}
+  <form method="post" action="/settings/users">
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="username">Identifiant</label>
+        <input type="text" id="username" name="username" required>
+      </div>
+      <div class="form-field">
+        <label for="password">Mot de passe</label>
+        <input type="password" id="password" name="password" required minlength="8">
+        <div class="help">8 caractères minimum.</div>
+      </div>
+      <div class="form-field">
+        <label>Rôle</label>
+        <div class="type-picker">
+          <label><input type="radio" name="role" value="viewer" checked> <span>Lecture seule (supervision)</span></label>
+          <label><input type="radio" name="role" value="admin"> <span>Admin</span></label>
+        </div>
+        <div class="help">Lecture seule : voit le dashboard mais ne peut ni approuver/rejeter, ni configurer.</div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">Créer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

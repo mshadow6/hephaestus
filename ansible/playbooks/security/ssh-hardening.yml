@@ -1,0 +1,49 @@
+---
+# Durcissement SSH générique, utilisable depuis le catalogue (/playbooks/deploy) contre
+# n'importe quel groupe de l'inventaire — contrairement à vm-hardening/harden-root.yml
+# qui ne tourne qu'automatiquement à la création d'une VM par ce pipeline (groupe "vms"
+# fixe, compte "admin_username" fixe). Même effet de fond (ferme root en SSH, désactive
+# l'authentification par mot de passe), mais générique : utilisable sur un serveur ajouté
+# manuellement à l'inventaire (swarm, stockage, Samba AD...), quel que soit son compte.
+#
+# Garde-fou anti-lockout : refuse de continuer si le compte actuellement utilisé par
+# Ansible (ansible_user) n'a pas sudo — sinon on couperait root ET mot de passe sans
+# alternative, verrouillage total de l'hôte.
+#
+# Usage : catalogue "Durcissement SSH" sur /playbooks/deploy, contre un groupe ou des
+# cibles manuelles.
+
+- name: Durcissement SSH (ferme root, clé uniquement)
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  gather_facts: true
+
+  pre_tasks:
+    - name: Anti-lockout — vérifier que {{ ansible_user }} a bien sudo
+      ansible.builtin.command: "id -nG {{ ansible_user }}"
+      register: _groups_check
+      changed_when: false
+      failed_when: "'sudo' not in _groups_check.stdout and 'wheel' not in _groups_check.stdout"
+
+  tasks:
+    - name: Interdire l'authentification SSH par mot de passe
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PasswordAuthentication\s'
+        line: 'PasswordAuthentication no'
+        validate: 'sshd -t -f %s'
+      notify: Recharger sshd
+
+    - name: Interdire complètement le login root en SSH
+      ansible.builtin.lineinfile:
+        path: /etc/ssh/sshd_config
+        regexp: '^#?PermitRootLogin\s'
+        line: 'PermitRootLogin no'
+        validate: 'sshd -t -f %s'
+      notify: Recharger sshd
+
+  handlers:
+    - name: Recharger sshd
+      ansible.builtin.service:
+        name: "{{ 'sshd' if ansible_facts['os_family'] == 'RedHat' else 'ssh' }}"
+        state: reloaded

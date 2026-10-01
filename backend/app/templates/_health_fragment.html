@@ -1,0 +1,19 @@
+<div class="health-strip">
+  {% for h in health_checks %}
+  <div class="health-chip {{ 'ok' if h.ok else 'ko' }}">
+    <span class="dot {{ 'on' if h.ok else 'off' }}"></span>
+    <strong>{{ h.name }}</strong>
+    <span class="latency">{{ h.latency_ms }} ms</span>
+  </div>
+  {% endfor %}
+  {% for c in connector_checks %}
+  <div class="health-chip {{ 'ok' if c.ok else 'ko' }}" title="{{ c.message }}">
+    <span class="dot {{ 'on' if c.ok else 'off' }}"></span>
+    <strong>{{ c.name }}</strong>
+    <span class="latency">{{ c.latency_ms }} ms</span>
+  </div>
+  {% endfor %}
+  {% if not connector_checks %}
+  <div class="health-chip muted">Aucun connecteur configuré — <a href="/connections">en ajouter un</a></div>
+  {% endif %}
+</div>

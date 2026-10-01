@@ -1,0 +1,91 @@
+{% extends "base.html" %}
+{% block title %}{{ r.hostname }} — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/">&larr; Retour à la liste</a>
+{% if r.glpi_ticket_id and glpi_base_url %}
+<a class="back-link" href="{{ glpi_base_url }}/front/change.form.php?id={{ r.glpi_ticket_id }}" target="_blank" rel="noopener" style="margin-left: 1rem;">
+  Retour au ticket GLPI #{{ r.glpi_ticket_id }} &rarr;
+</a>
+{% endif %}
+
+<div class="card">
+  {% include "_status_fragment.html" %}
+</div>
+
+<div class="section-title">Détails de la demande</div>
+<div class="card">
+  <div class="detail-grid">
+    <div class="field">
+      <label>Hostname</label>
+      <div class="value mono">{{ r.hostname }}</div>
+    </div>
+    <div class="field">
+      <label>Template</label>
+      <div class="value mono">{{ r.os_template or "—" }}</div>
+    </div>
+    <div class="field">
+      <label>vCPU</label>
+      <div class="value">{{ r.cpu or "—" }}</div>
+    </div>
+    <div class="field">
+      <label>RAM</label>
+      <div class="value">{{ r.ram_gb and (r.ram_gb ~ " Go") or "—" }}</div>
+    </div>
+    <div class="field">
+      <label>Disque</label>
+      <div class="value">{{ r.disk_gb and (r.disk_gb ~ " Go") or "—" }}</div>
+    </div>
+    <div class="field">
+      <label>VLAN</label>
+      <div class="value mono">{{ r.vlan or "—" }}</div>
+    </div>
+    <div class="field">
+      <label>Ticket GLPI</label>
+      <div class="value">
+        {% if r.glpi_ticket_id and glpi_base_url %}
+        <a href="{{ glpi_base_url }}/front/change.form.php?id={{ r.glpi_ticket_id }}" target="_blank" rel="noopener">
+          #{{ r.glpi_ticket_id }}
+        </a>
+        {% else %}
+        {{ r.glpi_ticket_id or "—" }}
+        {% endif %}
+      </div>
+    </div>
+    <div class="field">
+      <label>Demandé par</label>
+      <div class="value">{{ r.requested_by or "—" }}</div>
+    </div>
+    <div class="field">
+      <label>Approuvé par</label>
+      <div class="value">
+        {{ r.approved_by or "—" }}
+        {% if r.approved_at %}<span class="category-hint">{{ r.approved_at.strftime("%Y-%m-%d %H:%M") }}</span>{% endif %}
+      </div>
+    </div>
+    <div class="field">
+      <label>Créé le</label>
+      <div class="value">{{ r.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</div>
+    </div>
+  </div>
+</div>
+
+<div class="section-title">Playbooks exécutés</div>
+<div class="card">
+  {% if r.status.value in ("post_install", "done", "failed") %}
+  <div class="detail-grid">
+    <div class="field">
+      <label>Durcissement SSH</label>
+      <div class="value">Compte admin + fermeture de root (toujours appliqué)</div>
+    </div>
+    {% if r.selected_playbooks %}
+    <div class="field">
+      <label>Catalogue</label>
+      <div class="value mono">{{ r.selected_playbooks | join(", ") }}</div>
+    </div>
+    {% endif %}
+  </div>
+  {% else %}
+  <div class="empty-state">Pas encore lancé — arrive après la création de la VM.</div>
+  {% endif %}
+</div>
+{% endblock %}

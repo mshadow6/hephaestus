@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+{% block title %}Connexions — Hephaestus{% endblock %}
+{% block content %}
+<div class="page-header">
+  <h2>Connexions providers</h2>
+  <a class="btn" href="/connections/new">+ Ajouter une connexion</a>
+</div>
+
+<div class="card">
+  {% if connections %}
+  <table>
+    <thead>
+      <tr>
+        <th>Nom</th>
+        <th>Type</th>
+        <th>Statut</th>
+        <th>Active pour sa catégorie</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in connections %}
+      <tr>
+        <td><a href="/connections/{{ c.name }}/edit">{{ c.name }}</a></td>
+        <td>
+          <span class="type-badge">{{ provider_types[c.type].label if c.type in provider_types else c.type }}</span>
+          {% if c.type in provider_types %}<span class="category-hint">{{ category_labels.get(provider_types[c.type].category, provider_types[c.type].category) }}</span>{% endif %}
+        </td>
+        <td>
+          <span class="dot {{ 'on' if c.enabled else 'off' }}"></span>
+          {{ "activée" if c.enabled else "désactivée" }}
+          <form method="post" action="/connections/{{ c.name }}/toggle-enabled" style="display:inline">
+            <button class="btn btn-sm btn-secondary" type="submit">
+              {{ "Désactiver" if c.enabled else "Activer" }}
+            </button>
+          </form>
+        </td>
+        <td>
+          {{ "★ active" if c.active else "—" }}
+          <form method="post" action="/connections/{{ c.name }}/toggle-active" style="display:inline">
+            <button class="btn btn-sm btn-secondary" type="submit">
+              {{ "Retirer" if c.active else "Rendre active" }}
+            </button>
+          </form>
+        </td>
+        <td>
+          <form method="post" action="/connections/{{ c.name }}/delete"
+                onsubmit="return confirm('Supprimer la connexion {{ c.name }} ?');" style="display:inline">
+            <button class="btn btn-sm btn-danger" type="submit">Supprimer</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">Aucune connexion configurée pour l'instant.</div>
+  {% endif %}
+</div>
+{% endblock %}

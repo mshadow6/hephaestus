@@ -1,0 +1,9 @@
+label: Agrandissement de la partition racine
+repo_path: post-install/resize-disk.yml
+category: optional
+description: >
+  Agrandit un point de montage (racine par défaut, paramétrable via l'extra-var
+  resize_mount_point) après avoir augmenté la taille du disque côté hyperviseur —
+  détection automatique LVM ou partition simple. Pas encore testé contre un hôte réel.
+enabled: true
+order: 2

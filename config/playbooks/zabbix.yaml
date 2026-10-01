@@ -1,0 +1,6 @@
+label: Agent de supervision Zabbix
+repo_path: post-install/zabbix.yml
+category: optional
+description: Supervision (métriques, alerting)
+enabled: true
+order: 1

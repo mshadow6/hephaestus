@@ -1,0 +1,6 @@
+label: Mise à jour du système
+repo_path: post-install/update-os.yml
+category: mandatory
+description: apt update && apt upgrade
+enabled: true
+order: 1

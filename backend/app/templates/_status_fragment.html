@@ -1,0 +1,45 @@
+{% set terminal_statuses = ["vm_created", "vm_failed", "done", "failed", "rejected"] %}
+<div id="status-fragment"
+     {% if r.status.value not in terminal_statuses %}
+     hx-get="/vm/{{ r.id }}/status-fragment"
+     hx-trigger="every 3s"
+     hx-swap="outerHTML"
+     {% endif %}>
+  <div class="detail-grid">
+    <div class="field">
+      <label>Statut</label>
+      <div class="value"><span class="badge status-{{ r.status.value }}">{{ r.status.value | status_label }}</span></div>
+    </div>
+    <div class="field">
+      <label>IP</label>
+      <div class="value mono">{{ r.ip_address or "en attente…" }}</div>
+    </div>
+    <div class="field">
+      <label>VM ID Proxmox</label>
+      <div class="value mono">{{ r.proxmox_vmid or "en attente…" }}</div>
+    </div>
+    <div class="field">
+      <label>Mise à jour</label>
+      <div class="value">{{ r.updated_at.strftime("%Y-%m-%d %H:%M:%S") }}</div>
+    </div>
+  </div>
+  {% if r.error_message %}
+  <div class="error-box">{{ r.error_message }}</div>
+  {% endif %}
+  {% if r.rejection_reason %}
+  <div class="field">
+    <label>Motif du refus</label>
+    <div class="value">{{ r.rejection_reason }}</div>
+  </div>
+  {% endif %}
+  {% if r.status.value == "pending_approval" and request.session.get('user', {}).get('role') == 'admin' %}
+  <div class="approval-actions">
+    <a href="/vm/{{ r.id }}/approve" class="btn">Approuver</a>
+    <form method="post" action="/vm/{{ r.id }}/reject"
+          onsubmit="return promptRejectReason(this);" style="display:inline">
+      <input type="hidden" name="reason" value="">
+      <button type="submit" class="btn btn-danger">Rejeter</button>
+    </form>
+  </div>
+  {% endif %}
+</div>

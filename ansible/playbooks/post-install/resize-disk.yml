@@ -1,0 +1,119 @@
+---
+# Agrandit un point de montage (racine par défaut) après avoir augmenté la taille du
+# disque virtuel côté hyperviseur (Proxmox/VMware) — n'ajoute pas de nouveau disque,
+# étend l'espace déjà alloué à un disque existant. Détection automatique : fonctionne
+# aussi bien avec un volume LVM (vg/lv) qu'une partition simple, pas de nom de device en
+# dur (sda/sdb/nvme0n1... varie selon l'architecture/le contrôleur — impossible à deviner
+# à l'avance, confirmé par le retour utilisateur : "jamais pareil, sda sdb sdc").
+#
+# Variable (extra-var, optionnelle) :
+#   resize_mount_point : point de montage à agrandir (défaut "/")
+#
+# Aucun redémarrage requis — growpart/pvresize/lvextend/resize2fs/xfs_growfs sont tous
+# des opérations à chaud sur Linux.
+#
+# Limites assumées (généricité a ses bornes, cas volontairement pas couverts) :
+#   - agrandit un disque déjà étendu côté hyperviseur AVANT de lancer ce playbook (ne
+#     gère pas l'ajout d'un tout nouveau disque séparé, scénario différent)
+#   - testé sur les layouts courants (partition classique type sdaN, NVMe type
+#     nvme0n1pN, LVM par-dessus l'un ou l'autre) ; un layout plus exotique peut nécessiter
+#     une adaptation manuelle
+#   - NON TESTÉ sur un hôte réel à ce stade (pas d'infra de test dédiée) — à valider sur
+#     une VM jetable avant tout usage contre un serveur de production
+#
+# Piste future (pas implémentée) : déclencher automatiquement avec une taille cible
+# parsée depuis un ticket GLPI, même principe que l'allocation IP (voir
+# backend/app/provisioning/ipam) — demanderait un champ "extra-vars" exploitable depuis
+# /playbooks/deploy, pas encore câblé à la création du run.
+
+- name: Agrandir un point de montage (LVM ou partition simple, détection automatique)
+  hosts: "{{ target_hosts | default('all') }}"
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Identifier le device du point de montage ciblé
+      ansible.builtin.set_fact:
+        _target_mount: "{{ ansible_mounts | selectattr('mount', 'equalto', resize_mount_point | default('/')) | list | first | default(none) }}"
+
+    - name: Échouer si le point de montage est introuvable
+      ansible.builtin.fail:
+        msg: "Point de montage '{{ resize_mount_point | default('/') }}' introuvable sur {{ inventory_hostname }}"
+      when: _target_mount is none
+
+    - name: Est-ce un volume LVM ?
+      ansible.builtin.command: "lvs --noheadings -o vg_name,lv_name {{ _target_mount.device }}"
+      register: _lvs_check
+      changed_when: false
+      failed_when: false
+
+    # --- Cas LVM : grandit la/les partition(s) sous-jacente(s), puis le PV, puis le LV ---
+    - name: Cas LVM
+      when: _lvs_check.rc == 0
+      block:
+        - name: VG et LV concernés
+          ansible.builtin.set_fact:
+            _vg_name: "{{ _lvs_check.stdout.split()[0] }}"
+            _lv_name: "{{ _lvs_check.stdout.split()[1] }}"
+
+        - name: PV(s) de ce VG
+          ansible.builtin.command: "pvs --noheadings -o pv_name -S vg_name={{ _vg_name }}"
+          register: _pvs_list
+          changed_when: false
+
+        - name: Agrandir la partition sous-jacente de chaque PV qui est bien une partition (pas un disque entier)
+          ansible.builtin.command: >
+            growpart
+            {{ item | regex_replace('^(/dev/(?:[a-z]+|nvme[0-9]+n[0-9]+|xvd[a-z]+))p?[0-9]+$', '\1') }}
+            {{ item | regex_replace('^.*?([0-9]+)$', '\1') }}
+          loop: "{{ _pvs_list.stdout_lines | map('trim') | select('match', '.*[0-9]+$') | list }}"
+          register: _growpart
+          changed_when: "'CHANGED' in (_growpart.stdout | default(''))"
+          failed_when: _growpart.rc != 0 and 'NOCHANGE' not in (_growpart.stdout | default(''))
+
+        - name: pvresize sur chaque PV (prend en compte le disque/la partition agrandie)
+          ansible.builtin.command: "pvresize {{ item }}"
+          loop: "{{ _pvs_list.stdout_lines | map('trim') | list }}"
+          register: _pvresize
+          changed_when: "'changed' in (_pvresize.stdout | default('')) or 'successfully' in (_pvresize.stdout | default(''))"
+
+        - name: lvextend + redimensionnement du filesystem (-r gère ext4/xfs automatiquement)
+          ansible.builtin.command: "lvextend -r -l +100%FREE /dev/{{ _vg_name }}/{{ _lv_name }}"
+          register: _lvextend
+          changed_when: "'Size of logical volume' in _lvextend.stdout"
+          failed_when: _lvextend.rc != 0 and 'matches existing size' not in _lvextend.stdout
+
+    # --- Cas partition simple (pas de LVM) ---
+    - name: Cas partition simple (non-LVM)
+      when: _lvs_check.rc != 0
+      block:
+        - name: Agrandir la partition (growpart)
+          ansible.builtin.command: >
+            growpart
+            {{ _target_mount.device | regex_replace('^(/dev/(?:[a-z]+|nvme[0-9]+n[0-9]+|xvd[a-z]+))p?[0-9]+$', '\1') }}
+            {{ _target_mount.device | regex_replace('^.*?([0-9]+)$', '\1') }}
+          register: _growpart_plain
+          changed_when: "'CHANGED' in (_growpart_plain.stdout | default(''))"
+          failed_when: _growpart_plain.rc != 0 and 'NOCHANGE' not in (_growpart_plain.stdout | default(''))
+
+        - name: Rafraîchir la table de partitions côté noyau
+          ansible.builtin.command: >
+            partprobe {{ _target_mount.device | regex_replace('^(/dev/(?:[a-z]+|nvme[0-9]+n[0-9]+|xvd[a-z]+))p?[0-9]+$', '\1') }}
+          changed_when: false
+          failed_when: false
+
+        - name: Agrandir le filesystem (ext2/3/4 ou xfs)
+          community.general.filesystem:
+            fstype: "{{ _target_mount.fstype }}"
+            dev: "{{ _target_mount.device }}"
+            resizefs: true
+          when: _target_mount.fstype in ['ext2', 'ext3', 'ext4', 'xfs']
+
+    - name: Espace disponible après agrandissement
+      ansible.builtin.command: "df -h {{ resize_mount_point | default('/') }}"
+      register: _df_after
+      changed_when: false
+
+    - name: Résultat
+      ansible.builtin.debug:
+        var: _df_after.stdout_lines

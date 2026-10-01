@@ -1,0 +1,6 @@
+label: Agent EDR
+repo_path: post-install/edr.yml
+category: optional
+description: Déploiement de l'agent de détection/réponse
+enabled: true
+order: 2

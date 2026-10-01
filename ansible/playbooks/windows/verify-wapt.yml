@@ -1,0 +1,65 @@
+---
+# BROUILLON — non testé, nécessite un hôte Windows réellement joignable en WinRM pour
+# être validé.
+#
+# Vérifie seulement que l'agent WAPT est présent et actif sur l'hôte — ne déploie AUCUN
+# paquet. Le déploiement de paquets reste piloté depuis le serveur WAPT lui-même, hors du
+# périmètre de cette application (demande explicite utilisateur : "envoyer les paquets
+# depuis WAPT serait hors scope de l'application").
+#
+# Connexion : Ansible se connecte en SSH partout ailleurs dans l'app (voir
+# ansible_runner.py), mais Windows n'a pas de SSH natif côté Ansible standard — il faut
+# WinRM. Cet hôte doit donc avoir ses PROPRES variables de connexion définies directement
+# dans config/inventory.yml (onglet "Édition avancée" tant que le formulaire structuré ne
+# gère que hostname+IP), qui prennent le pas sur les identifiants SSH injectés
+# globalement par l'app pour le reste de l'inventaire (variables d'hôte > variables du
+# groupe "all", quel que soit le fichier d'inventaire d'origine) :
+#
+#   all:
+#     children:
+#       windows:
+#         hosts:
+#           srv-win-01:
+#             ansible_host: 192.168.1.xxx
+#             ansible_connection: winrm
+#             ansible_user: ADMIN_LOCAL_OU_DOMAINE
+#             ansible_password: "mot de passe en clair pour l'instant, à sortir en vault"
+#             ansible_port: 5986
+#             ansible_winrm_transport: ntlm
+#             ansible_winrm_server_cert_validation: ignore
+#
+# Dépendances côté contrôleur Ansible (worker/backend) :
+#   - collections ansible.windows + community.windows (à ajouter dans requirements.yml
+#     du repo Gitea)
+#   - paquet Python pywinrm (ajouté à backend/requirements.txt de l'app)
+
+- name: Vérifier la présence et l'état de l'agent WAPT
+  hosts: "{{ target_hosts | default('windows') }}"
+  gather_facts: false
+
+  tasks:
+    - name: Service waptservice — état
+      ansible.windows.win_service_info:
+        name: waptservice
+      register: wapt_service
+
+    - name: Binaire wapt-get.exe — présence
+      ansible.windows.win_stat:
+        path: 'C:\Program Files (x86)\wapt\wapt-get.exe'
+      register: wapt_binary
+
+    - name: Résultat lisible
+      ansible.builtin.debug:
+        msg: >-
+          {{ 'WAPT présent et service actif' if
+             (wapt_service.services is defined and wapt_service.services | length > 0
+              and wapt_service.services[0].state == 'running' and wapt_binary.stat.exists)
+             else 'WAPT absent ou service arrêté — à installer/relancer manuellement' }}
+
+    - name: Échec explicite si WAPT absent ou arrêté (statut clair côté dashboard)
+      ansible.builtin.fail:
+        msg: "Agent WAPT introuvable ou arrêté sur {{ inventory_hostname }}"
+      when: >
+        wapt_service.services is not defined or wapt_service.services | length == 0
+        or wapt_service.services[0].state != 'running'
+        or not wapt_binary.stat.exists

@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}Inventaire — Hephaestus{% endblock %}
+{% block content %}
+<div class="page-header"><h2>Playbooks</h2></div>
+<div class="subnav">
+  <a href="/playbooks">Catalogue</a>
+  <a href="/playbooks/deploy">Déploiement infra</a>
+  <a href="/playbooks/inventory" class="active">Inventaire</a>
+  <a href="/playbooks/runs">Historique</a>
+</div>
+
+<div class="page-header">
+  <h3 style="margin:0;">Inventaire Ansible</h3>
+</div>
+<div class="help" style="margin: 0 0 1rem;">
+  Organise tes hôtes en groupes, utilisables ensuite sur la page
+  <a href="/playbooks/deploy">Déploiement infra</a> sans avoir à cocher chaque machine
+  une par une. "Régénérer depuis Proxmox" ajoute les VMs découvertes qui ne sont pas
+  déjà présentes, sans jamais toucher aux entrées existantes.
+</div>
+
+{% if error %}<div class="error-box" style="margin: 0 0 1rem;">{{ error }}</div>{% endif %}
+{% if saved %}<div class="test-result ok" style="margin: 0 0 1rem;">Enregistré.</div>{% endif %}
+
+<div class="form-actions" style="margin-bottom: 1rem;">
+  <form method="post" action="/playbooks/inventory/regenerate">
+    <button type="submit" class="btn btn-secondary">Régénérer depuis Proxmox</button>
+  </form>
+</div>
+
+<div class="card" style="margin-bottom: 1.25rem;">
+  <h3>Nouveau groupe</h3>
+  <form method="post" action="/playbooks/inventory/groups" class="form-grid" style="max-width: none;">
+    <div class="form-field">
+      <label>Nom du groupe</label>
+      <input type="text" name="name" placeholder="ex : swarm, storage, samba-ad" required>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">Ajouter le groupe</button>
+    </div>
+  </form>
+</div>
+
+{% if groups %}
+  {% for group_name, hosts in groups.items() %}
+  <div class="card" style="margin-bottom: 1.25rem;">
+    <div class="page-header" style="padding: 1rem 1.25rem 0;">
+      <h3 style="margin:0;">{{ group_name }}</h3>
+      <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/delete"
+            onsubmit="return confirm('Supprimer le groupe « {{ group_name }} » et tous ses hôtes ?');">
+        <button type="submit" class="btn btn-sm btn-danger">Supprimer le groupe</button>
+      </form>
+    </div>
+
+    {% if hosts %}
+    <table>
+      <thead>
+        <tr>
+          <th>Hôte</th>
+          <th>IP / ansible_host</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for h in hosts %}
+        <tr>
+          <td class="mono">{{ h.hostname }}</td>
+          <td class="mono">{{ h.ansible_host or "—" }}</td>
+          <td>
+            <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/hosts/{{ h.hostname }}/delete"
+                  onsubmit="return confirm('Retirer « {{ h.hostname }} » du groupe « {{ group_name }} » ?');">
+              <button type="submit" class="btn btn-sm btn-danger">Retirer</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">Aucun hôte dans ce groupe.</div>
+    {% endif %}
+
+    <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/hosts"
+          class="form-grid" style="max-width: none; padding: 1rem 1.25rem;">
+      <div class="form-field">
+        <label>Nom d'hôte</label>
+        <input type="text" name="hostname" placeholder="ex : srv-web-01" required>
+      </div>
+      <div class="form-field">
+        <label>IP (ansible_host, optionnel)</label>
+        <input type="text" name="ansible_host" placeholder="ex : 192.0.2.42">
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn btn-secondary">Ajouter l'hôte</button>
+      </div>
+    </form>
+  </div>
+  {% endfor %}
+{% else %}
+<div class="empty-state">Aucun groupe pour l'instant — crée-en un ci-dessus, ou régénère depuis Proxmox.</div>
+{% endif %}
+
+<details style="margin-top: 1rem;">
+  <summary style="cursor:pointer; color: var(--muted);">Édition avancée (YAML brut)</summary>
+  <div class="card" style="margin-top: 0.75rem;">
+    <form method="post" action="/playbooks/inventory">
+      <div class="form-grid" style="max-width: none;">
+        <div class="form-field">
+          <textarea name="content" rows="18" class="mono" style="width:100%; font-size:0.82rem;" spellcheck="false">{{ content }}</textarea>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button type="submit" class="btn">Enregistrer le YAML</button>
+      </div>
+    </form>
+  </div>
+</details>
+{% endblock %}

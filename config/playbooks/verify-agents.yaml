@@ -1,0 +1,7 @@
+label: Vérification des agents installés
+repo_path: post-install/verify-agents.yml
+category: optional
+description: Vérifie que EDR, Zabbix, Cyberwatch et la clé SSH admin sont bien présents
+  sur le serveur
+enabled: true
+order: 3

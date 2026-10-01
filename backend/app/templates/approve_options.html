@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Approuver — {{ r.hostname }} — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/vm/{{ r.id }}">&larr; Retour à la demande</a>
+{% if r.glpi_ticket_id and glpi_base_url %}
+<a class="back-link" href="{{ glpi_base_url }}/front/change.form.php?id={{ r.glpi_ticket_id }}" target="_blank" rel="noopener" style="margin-left: 1rem;">
+  Retour au ticket GLPI #{{ r.glpi_ticket_id }} &rarr;
+</a>
+{% endif %}
+
+<div class="card">
+  <h3>
+    Validation de création VM
+    {% if r.glpi_ticket_id %}— Ticket GLPI #{{ r.glpi_ticket_id }}{% endif %}
+    — « {{ r.hostname }} »
+  </h3>
+  <div class="help" style="padding: 0 1.25rem;">
+    Choisis les playbooks post-install optionnels à exécuter en plus du durcissement SSH
+    (toujours appliqué) et des playbooks obligatoires.
+  </div>
+  {% if error %}
+  <div class="error-box" style="margin: 0 1.25rem;">{{ error }}</div>
+  {% endif %}
+
+  <form method="post" action="/vm/{{ r.id }}/approve">
+    <div class="form-grid">
+
+      <div class="form-field">
+        <label>Toujours appliqué</label>
+        <div class="playbook-row">
+          <input type="checkbox" checked disabled>
+          <span>Durcissement SSH (compte admin + fermeture de root)</span>
+        </div>
+      </div>
+
+      {% if mandatory %}
+      <div class="form-field">
+        <label>Obligatoire</label>
+        {% for p in mandatory %}
+        <div class="playbook-row">
+          <label>
+            <input type="checkbox" name="playbooks" value="{{ p.key }}" checked>
+            {{ p.label }}
+          </label>
+          {% if not p.implemented %}<span class="type-badge not-implemented">pas encore écrit</span>{% endif %}
+        </div>
+        {% if p.description %}<div class="help">{{ p.description }}</div>{% endif %}
+        {% endfor %}
+        <div class="help">
+          Décocher un obligatoire est possible, mais demande de confirmer ton nom
+          d'utilisateur ci-dessous (doit correspondre exactement à ton compte connecté) —
+          ça reste tracé sur le ticket GLPI.
+        </div>
+        <div class="form-field">
+          <label for="confirm_username">Nom d'utilisateur (requis uniquement si tu décoches un obligatoire)</label>
+          <input type="text" id="confirm_username" name="confirm_username" placeholder="ex: {{ current_username }}">
+        </div>
+      </div>
+      {% endif %}
+
+      {% if optional %}
+      <div class="form-field">
+        <label>Optionnel</label>
+        {% for p in optional %}
+        <div class="playbook-row">
+          <label>
+            <input type="checkbox" name="playbooks" value="{{ p.key }}">
+            {{ p.label }}
+          </label>
+          {% if not p.implemented %}<span class="type-badge not-implemented">pas encore écrit</span>{% endif %}
+        </div>
+        {% if p.description %}<div class="help">{{ p.description }}</div>{% endif %}
+        {% endfor %}
+      </div>
+      {% endif %}
+
+    </div>
+
+    <div class="form-actions">
+      <button type="submit" class="btn">Approuver et lancer la création</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

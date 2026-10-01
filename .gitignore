@@ -1,0 +1,32 @@
+.env
+.secrets/
+
+# Config des connexions providers : contient des secrets (tokens API, mots de passe),
+# jamais versionné (même pattern que .env.example vs .env)
+config/providers/*.yaml
+!config/providers/*.example.yaml
+config/ldap.yaml
+
+# Inventaire Ansible persistant : hostnames/IPs réels de l'infra qui tourne l'app,
+# régénéré automatiquement (valeur par défaut vide) à la première écriture — voir
+# app.provisioning.inventory_file.DEFAULT_INVENTORY
+config/inventory.yml
+
+# Manifests Swarm des services supports de MON homelab perso (Gitea/GLPI/phpIPAM),
+# pas partie de l'application elle-même — noms d'hôtes réels dedans, pas génériques.
+infra/
+
+# Journal de développement interne (chronologique, "pour nous deux") — contient des
+# IP/hostnames réels de l'infra de test au fil des étapes. Pas destiné à GitHub, reste
+# en local uniquement. Voir README.md pour la doc publique.
+JOURNAL.md
+__pycache__/
+*.pyc
+.venv/
+
+# Terraform
+.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
+terraform.tfvars.json

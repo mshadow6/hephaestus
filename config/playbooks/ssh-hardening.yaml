@@ -1,0 +1,9 @@
+label: Durcissement SSH (ferme root)
+repo_path: security/ssh-hardening.yml
+category: optional
+description: >
+  Désactive la connexion root et l'authentification par mot de passe en SSH. Déjà
+  appliqué automatiquement à la création d'une VM par ce pipeline — cette entrée sert à
+  l'appliquer à la demande sur un hôte ajouté manuellement à l'inventaire.
+enabled: true
+order: 1

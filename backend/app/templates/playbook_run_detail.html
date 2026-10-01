@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}{{ run.playbook_label }} — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/playbooks/runs?playbook={{ run.playbook_key }}">&larr; Historique de ce playbook</a>
+
+<div class="card">
+  <div class="detail-grid">
+    <div class="field">
+      <label>Playbook</label>
+      <div class="value">
+        {{ run.playbook_label }}
+        {% if run.dry_run %}<span class="type-badge">dry-run</span>{% endif %}
+        {% if run.verbose %}<span class="type-badge">-vvvv</span>{% endif %}
+      </div>
+    </div>
+    <div class="field">
+      <label>Cibles</label>
+      <div class="value mono">
+        {% if run.target_hostnames.group %}groupe:{{ run.target_hostnames.group }}{% endif %}
+        {% if run.target_hostnames.manual %}{{ ' + ' if run.target_hostnames.group else '' }}{{ run.target_hostnames.manual | join(", ") }}{% endif %}
+      </div>
+    </div>
+    <div class="field">
+      <label>Lancé par</label>
+      <div class="value">{{ run.launched_by or "—" }}</div>
+    </div>
+    <div class="field">
+      <label>Lancé le</label>
+      <div class="value">{{ run.created_at.strftime("%Y-%m-%d %H:%M:%S") }}</div>
+    </div>
+  </div>
+  {% include "_playbook_run_status_fragment.html" %}
+</div>
+{% endblock %}

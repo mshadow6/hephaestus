@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Hephaestus{% endblock %}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="stylesheet" href="/static/style.css?v={{ static_version() }}">
+  <script src="/static/htmx.min.js"></script>
+  <script>
+    (function () {
+      var saved = localStorage.getItem("theme");
+      var theme = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    })();
+
+    function promptRejectReason(form) {
+      var reason = prompt("Pourquoi refuser cette demande ? (obligatoire — envoyé sur le ticket GLPI)");
+      if (reason === null || reason.trim() === "") return false;
+      form.querySelector('input[name="reason"]').value = reason.trim();
+      return true;
+    }
+
+    function promptConfirmUsername(form, expectedUsername, actionLabel) {
+      var input = prompt((actionLabel || "Confirmer cette action") + " — tape ton nom d'utilisateur (" + expectedUsername + ") :");
+      if (input === null) return false;
+      if (input.trim() !== expectedUsername) {
+        alert("Nom d'utilisateur incorrect — action annulée.");
+        return false;
+      }
+      form.querySelector('input[name="confirm_username"]').value = input.trim();
+      return true;
+    }
+
+    // Menus déroulants au clic (pas au survol) : marche pareil à la souris et au tactile,
+    // et reste ouvert tant qu'on n'a pas cliqué ailleurs ou choisi une entrée.
+    function toggleNavDropdown(event, trigger) {
+      event.preventDefault();
+      event.stopPropagation();
+      var dropdown = trigger.closest(".nav-dropdown");
+      var wasOpen = dropdown.classList.contains("open");
+      document.querySelectorAll(".nav-dropdown.open").forEach(function (d) { d.classList.remove("open"); });
+      if (!wasOpen) dropdown.classList.add("open");
+    }
+    document.addEventListener("click", function (event) {
+      if (!event.target.closest(".nav-dropdown")) {
+        document.querySelectorAll(".nav-dropdown.open").forEach(function (d) { d.classList.remove("open"); });
+      }
+    });
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <a href="/" class="brand">
+      <svg class="brand-mark" viewBox="0 0 52 40" fill="currentColor" aria-hidden="true">
+        <polygon points="10,15 10,21 0,18"/>
+        <rect x="10" y="12" width="32" height="10" rx="2"/>
+        <rect x="20" y="22" width="12" height="7"/>
+        <rect x="12" y="29" width="28" height="7" rx="1"/>
+      </svg>
+      <h1>Hephaestus</h1>
+    </a>
+    <span class="tag">homelab</span>
+    <nav class="topnav">
+      <a href="/">Home</a>
+      <div class="nav-dropdown">
+        <a href="/validations" onclick="toggleNavDropdown(event, this)">
+          Création de VM ▾
+          {% if pending_count %}<span class="nav-badge">{{ pending_count }}</span>{% endif %}
+        </a>
+        <div class="nav-dropdown-menu">
+          <a href="/validations">
+            En attente
+            {% if pending_count %}<span class="nav-badge">{{ pending_count }}</span>{% endif %}
+          </a>
+          <a href="/deployments">Historique</a>
+        </div>
+      </div>
+      {% set current_user = request.session.get('user') %}
+      {% if current_user and current_user.role == 'admin' %}
+      <div class="nav-dropdown">
+        <a href="/playbooks" onclick="toggleNavDropdown(event, this)">Playbooks ▾</a>
+        <div class="nav-dropdown-menu">
+          <a href="/playbooks">Catalogue</a>
+          <a href="/playbooks/deploy">Déploiement infra</a>
+          <a href="/playbooks/inventory">Inventaire</a>
+          <a href="/playbooks/runs">Historique des exécutions</a>
+        </div>
+      </div>
+      {% endif %}
+      {% if current_user %}<span class="nav-username">{{ current_user.username }}</span>{% endif %}
+      {% if current_user and current_user.role == 'admin' %}
+      <a href="/settings" class="icon-link" title="Paramètres">⚙️</a>
+      {% endif %}
+      <button type="button" class="theme-toggle" onclick="
+        var html = document.documentElement;
+        var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+        html.setAttribute('data-theme', next);
+        localStorage.setItem('theme', next);
+      ">🌙</button>
+      {% if current_user %}
+      <form method="post" action="/logout" style="margin:0">
+        <button type="submit" class="btn btn-sm btn-secondary">Déconnexion</button>
+      </form>
+      {% endif %}
+    </nav>
+  </header>
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

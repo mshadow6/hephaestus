@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Paramètres — Hephaestus{% endblock %}
+{% block content %}
+<div class="page-header"><h2>Paramètres</h2></div>
+
+<div class="settings-grid">
+  <a class="settings-tile" href="/connections">
+    <strong>Connecteurs</strong>
+    <span>GLPI, phpIPAM, EfficientIP, Proxmox, VMware...</span>
+  </a>
+  <a class="settings-tile" href="/settings/users">
+    <strong>Utilisateurs</strong>
+    <span>Comptes du dashboard, rôles admin / lecture seule</span>
+  </a>
+  <a class="settings-tile" href="/settings/ldap">
+    <strong>Authentification LDAP/LDAPS</strong>
+    <span>Connexion via annuaire d'entreprise (AD, FreeIPA...)</span>
+  </a>
+  <div class="settings-tile disabled">
+    <strong>Keycloak / OTP</strong>
+    <span>À venir</span>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Vue d'ensemble — Hephaestus{% endblock %}
+{% block content %}
+
+<div class="section-title" style="margin-left:0">État de l'application</div>
+<div class="health-strip" hx-get="/health-fragment" hx-trigger="load" hx-swap="outerHTML">
+  <div class="health-chip muted">Vérification en cours…</div>
+</div>
+
+<div class="section-title" style="margin-left:0">Demandes par statut</div>
+<div class="stat-cards">
+  {% for status in ["pending_approval", "provisioning", "vm_created", "vm_failed", "rejected"] %}
+  <div class="stat-card">
+    <div class="stat-value">{{ status_counts.get(status, 0) }}</div>
+    <div class="stat-label"><span class="badge status-{{ status }}">{{ status | status_label }}</span></div>
+  </div>
+  {% endfor %}
+</div>
+
+<div class="section-title" style="margin-left:0">Activité récente</div>
+<div class="card">
+  {% if recent_activity %}
+  <table>
+    <thead>
+      <tr><th>Type</th><th>Nom</th><th>Statut</th><th>Date</th></tr>
+    </thead>
+    <tbody>
+      {% for e in recent_activity %}
+      <tr>
+        <td>{{ "VM" if e.kind == "vm" else "Playbook" }}</td>
+        <td><a href="{{ e.url }}">{{ e.title }}</a></td>
+        <td><span class="badge status-{{ e.status }}">{{ e.status | status_label }}</span></td>
+        <td class="mono">{{ e.timestamp.strftime("%Y-%m-%d %H:%M") }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <div style="padding: 1rem 1.25rem;">
+    <a href="/deployments">Voir l'historique complet des déploiements</a>
+  </div>
+  {% else %}
+  <div class="empty-state">Aucune activité pour l'instant.</div>
+  {% endif %}
+</div>
+{% endblock %}

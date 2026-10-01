@@ -1,0 +1,6 @@
+label: Agent Cyberwatch
+repo_path: post-install/cyberwatch.yml
+category: optional
+description: Déploiement de l'agent de gestion des vulnérabilités
+enabled: true
+order: 3

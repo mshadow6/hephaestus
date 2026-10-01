@@ -1,0 +1,37 @@
+Copyright (c) 2026 Maxime Huyghe. Tous droits réservés.
+
+Ce dépôt (code source, playbooks, documentation) est publié publiquement à titre
+d'évaluation et de test uniquement.
+
+Sans autorisation écrite préalable de l'auteur, il est interdit de :
+  - modifier ce logiciel ou en créer une œuvre dérivée ;
+  - redistribuer, republier ou héberger ce logiciel (modifié ou non), y compris sous
+    forme de service (SaaS) ;
+  - l'utiliser à des fins commerciales.
+
+Toute personne est autorisée à consulter, cloner et exécuter ce logiciel localement,
+à des fins personnelles d'évaluation, de test et d'apprentissage.
+
+CE LOGICIEL EST FOURNI "EN L'ÉTAT", SANS GARANTIE D'AUCUNE SORTE, EXPRESSE OU IMPLICITE.
+L'AUTEUR NE POURRA EN AUCUN CAS ÊTRE TENU RESPONSABLE DE TOUT DOMMAGE RÉSULTANT DE
+L'UTILISATION DE CE LOGICIEL.
+
+---
+
+Copyright (c) 2026 Maxime Huyghe. All rights reserved.
+
+This repository (source code, playbooks, documentation) is published publicly for
+evaluation and testing purposes only.
+
+Without prior written permission from the author, it is prohibited to:
+  - modify this software or create derivative works from it;
+  - redistribute, republish, or host this software (modified or not), including as a
+    hosted service (SaaS);
+  - use it for commercial purposes.
+
+Anyone is permitted to view, clone, and run this software locally for personal
+evaluation, testing, and learning purposes.
+
+THIS SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED.
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DAMAGES ARISING FROM THE USE OF THIS
+SOFTWARE.
