@@ -6,28 +6,24 @@
 <div class="settings-grid">
   <a class="settings-tile" href="/connections">
     <strong>Connecteurs</strong>
-    <span>GLPI, phpIPAM, EfficientIP, Proxmox, VMware...</span>
+    <span>Proxmox, phpIPAM, GLPI, Gitea, EfficientIP, VMware</span>
   </a>
   <a class="settings-tile" href="/settings/users">
     <strong>Utilisateurs</strong>
-    <span>Comptes du dashboard, rôles admin / lecture seule</span>
+    <span>Comptes, rôles : admin, lecture seule</span>
   </a>
   <a class="settings-tile" href="/settings/ldap">
-    <strong>Authentification LDAP/LDAPS</strong>
-    <span>Connexion via annuaire d'entreprise (AD, FreeIPA...)</span>
+    <strong>LDAP/LDAPS</strong>
+    <span>Annuaire : AD, FreeIPA</span>
   </a>
   <a class="settings-tile" href="/settings/tls">
     <strong>Certificat (HTTPS)</strong>
-    <span>Basculer le site en HTTPS — certificat auto-signé ou le tien</span>
+    <span>Auto-signé ou importé</span>
   </a>
   <a class="settings-tile" href="/settings/help">
     <strong>Aide</strong>
-    <span>Fonctionnement, possibilités, support (GitHub)</span>
+    <span>Fonctionnement, support</span>
   </a>
-  <div class="settings-tile disabled">
-    <strong>Keycloak / OTP</strong>
-    <span>À venir</span>
-  </div>
 </div>
 
 <div class="section-title" style="margin-left:0">Points d'entrée des demandes de VM</div>
@@ -39,9 +35,7 @@
       Formulaire natif de demande de VM (<code>/requests/new</code>)
     </label>
     <div class="help">
-      Désactive-le si tu passes exclusivement par GLPI (ou un autre ITSM plus tard) pour
-      créer tes demandes — le webhook GLPI, lui, reste actif quoi qu'il arrive. Chacun
-      choisit comment il veut déclencher ses demandes, les deux ne sont pas liés.
+      Indépendant du webhook GLPI : toujours actif, même désactivé ici.
     </div>
   </form>
 </div>
