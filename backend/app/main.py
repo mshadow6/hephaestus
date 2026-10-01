@@ -1,3 +1,4 @@
+import mimetypes
 import time
 from pathlib import Path
 
@@ -12,6 +13,11 @@ from app.config import settings
 from app.routers import auth, connections, dashboard, playbooks, settings as settings_router, webhook
 
 app = FastAPI(title="Hephaestus API")
+
+# L'image Python slim n'a pas .woff2 dans sa base mimetypes système -> StaticFiles le
+# servait en text/plain, que certains navigateurs refusent de charger comme police par
+# sécurité (vérifié : le fichier répondait 200 mais avec le mauvais Content-Type).
+mimetypes.add_type("font/woff2", ".woff2")
 
 # max_age réduit (défaut Starlette : 14 jours) — une session admin qui traîne deux
 # semaines sur un poste partagé est un risque inutile pour un outil qui peut déclencher

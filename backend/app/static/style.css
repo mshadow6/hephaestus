@@ -1,3 +1,16 @@
+/* Police auto-hébergée (fichier variable, un seul fichier couvre les graisses 200-800) —
+   pas de dépendance à Google Fonts au chargement de la page : plus fiable sur un réseau
+   capricieux (VPN, à distance...), et rien n'est envoyé à Google juste pour afficher du
+   texte sur un outil self-hosted. */
+@font-face {
+  font-family: "Manrope";
+  src: url("/static/fonts/manrope-variable.woff2") format("woff2-variations"),
+       url("/static/fonts/manrope-variable.woff2") format("woff2");
+  font-weight: 200 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   --bg: #f4f5f8;
   --surface: #ffffff;
@@ -49,7 +62,7 @@ html[data-theme="dark"] .type-badge { background: #1e1b4b; color: #c7d2fe; }
 
 body {
   margin: 0;
-  font-family: "Inter", -apple-system, "Segoe UI", Roboto, sans-serif;
+  font-family: "Manrope", -apple-system, "Segoe UI", Roboto, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
