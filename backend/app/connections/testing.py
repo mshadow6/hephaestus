@@ -4,6 +4,7 @@ import subprocess
 import httpx
 
 from app.config import settings
+from app.errors import describe_connector_error
 from app.glpi.client import GlpiError, _get_token
 
 from .store import Connection
@@ -45,10 +46,8 @@ async def _test_proxmox(cfg: dict) -> tuple[bool, str]:
         if resp.status_code == 401:
             return False, "401 Unauthorized — token invalide ou realm incorrect."
         return False, f"HTTP {resp.status_code} — {resp.text[:200]}"
-    except httpx.TimeoutException:
-        return False, "Timeout — hôte injoignable."
     except httpx.HTTPError as exc:
-        return False, f"Erreur réseau : {exc}"
+        return False, describe_connector_error(exc)
 
 
 async def _test_phpipam(cfg: dict) -> tuple[bool, str]:
@@ -65,10 +64,8 @@ async def _test_phpipam(cfg: dict) -> tuple[bool, str]:
         if data.get("success"):
             return True, "OK — authentification phpIPAM réussie"
         return False, f"Échec authentification : {data.get('message', resp.text[:200])}"
-    except httpx.TimeoutException:
-        return False, "Timeout — hôte injoignable."
     except httpx.HTTPError as exc:
-        return False, f"Erreur réseau : {exc}"
+        return False, describe_connector_error(exc)
 
 
 async def _test_glpi(cfg: dict) -> tuple[bool, str]:
@@ -82,10 +79,8 @@ async def _test_glpi(cfg: dict) -> tuple[bool, str]:
         return True, "OK — authentification GLPI (OAuth2) réussie"
     except GlpiError as exc:
         return False, str(exc)
-    except httpx.TimeoutException:
-        return False, "Timeout — hôte injoignable."
     except httpx.HTTPError as exc:
-        return False, f"Erreur réseau : {exc}"
+        return False, describe_connector_error(exc)
 
 
 def _test_gitea(cfg: dict) -> tuple[bool, str]:
@@ -114,7 +109,5 @@ async def _test_http_reachable(url: str, insecure: bool = False) -> tuple[bool, 
         async with httpx.AsyncClient(verify=not insecure, timeout=8, follow_redirects=True) as client:
             resp = await client.get(url)
         return True, f"Hôte joignable — HTTP {resp.status_code}"
-    except httpx.TimeoutException:
-        return False, "Timeout — hôte injoignable."
     except httpx.HTTPError as exc:
-        return False, f"Erreur réseau : {exc}"
+        return False, describe_connector_error(exc)

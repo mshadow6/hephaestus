@@ -6,6 +6,7 @@ from app.config import settings
 from app.connections.store import get_active_connection
 from app.database import SessionLocal
 from app.dns import get_dns_provider
+from app.errors import describe_connector_error
 from app.dns.base import DnsProvider
 from app.ipam import get_ipam_provider
 from app.models import PlaybookRun, PlaybookRunStatus, RequestStatus, VMRequest
@@ -103,7 +104,7 @@ def process_vm_request(request_id: int) -> None:
                 vm_request.id, vm_request.hostname, exc,
             )
             vm_request.status = RequestStatus.failed
-            vm_request.error_message = f"Réservation IP/DNS échouée : {exc}"
+            vm_request.error_message = f"Réservation IP/DNS échouée : {describe_connector_error(exc)}"
             db.commit()
             return
 
