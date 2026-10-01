@@ -102,10 +102,20 @@
   </form>
 </div>
 
-<div class="help" style="margin-top: 1rem;">
-  En CLI (depuis le conteneur <code>backend</code>) :
-  <code class="mono">python -m app.cli tls set --cert cert.pem --key key.pem [--chain chain.pem]</code>,
-  <code class="mono">python -m app.cli tls generate --cn mondomaine.local</code>,
-  <code class="mono">python -m app.cli tls status</code>.
+<div class="card" style="margin-top: 1.25rem;">
+  <h3>En ligne de commande</h3>
+  <div class="help" style="padding: 0 1.25rem 1rem;">
+    Même résultat que les formulaires ci-dessus, sans passer par l'interface — à lancer
+    depuis un terminal sur la machine qui héberge l'application, à la racine du projet.
+    Pour <code>tls set</code>, les chemins sont lus <strong>depuis le conteneur</strong> :
+    copie d'abord tes fichiers dans <code>.secrets/</code> (déjà monté dedans), ou utilise
+    simplement les formulaires au-dessus si c'est plus simple.
+  </div>
+  <pre class="log-output" style="margin: 0 1.25rem 1.25rem;">docker compose exec backend python -m app.cli tls status
+docker compose exec backend python -m app.cli tls generate --cn mondomaine.local
+cp cert.pem key.pem chain.pem .secrets/
+docker compose exec backend python -m app.cli tls set \
+  --cert .secrets/cert.pem --key .secrets/key.pem --chain .secrets/chain.pem
+docker compose exec backend python -m app.cli tls disable</pre>
 </div>
 {% endblock %}
