@@ -56,8 +56,11 @@ open-source permissive (voir ce fichier pour le détail).
 - Catalogue de playbooks gérable depuis l'interface (obligatoire/optionnel configurable
   par toi, pas figé dans le code), déploiement à la demande contre n'importe quel hôte de
   ton inventaire (pas seulement les VMs créées par ce pipeline), sortie en direct
+  <img width="1920" height="1080" alt="Capture d’écran du 2026-10-01 14-00-44" src="https://github.com/user-attachments/assets/a3759e97-3728-4765-b02d-8adffa939691" />
 - Connexions (Proxmox, phpIPAM, GLPI, dépôt Git de playbooks, LDAP) configurables depuis
   l'interface web ou en CLI, avec test de connexion intégré
+  <img width="1920" height="1019" alt="Capture d’écran du 2026-10-01 14-13-37" src="https://github.com/user-attachments/assets/3227a3ad-b50f-409c-9c33-1afc3ba057e8" />
+
 
 ## Prérequis
 
