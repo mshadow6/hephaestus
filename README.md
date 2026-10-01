@@ -43,7 +43,9 @@ open-source permissive (voir ce fichier pour le détail).
 - Reçoit une demande de VM — webhook GLPI (`/webhooks/glpi`) **ou** formulaire natif du
   dashboard (`/requests/new`), les deux créent la même chose et suivent le même circuit
 - La met en attente de validation par un humain sur un dashboard web
-  <img width="1920" height="1200" alt="image" src="https://github.com/user-attachments/assets/06a10ae9-db34-430d-bf6d-c2c25ff6f5e2" />
+<img width="1920" height="1077" alt="Capture d’écran du 2026-10-01 13-35-45" src="https://github.com/user-attachments/assets/538793a2-f784-469d-9844-c2cb3c27ec9f" />
+<img width="1884" height="1004" alt="Capture d’écran du 2026-10-01 13-37-11" src="https://github.com/user-attachments/assets/7659d34e-2efc-4f3f-a88e-b3cd947e9748" />
+<img width="1920" height="1016" alt="Capture d’écran du 2026-10-01 13-37-56" src="https://github.com/user-attachments/assets/74b8be2f-a9c8-4aae-84e2-4f1126c25697" />
 
 - Une fois approuvée : réserve une IP (phpIPAM par défaut, interface branchée pour
   d'autres providers IPAM), crée la VM via Terraform (provider Proxmox aujourd'hui), puis
