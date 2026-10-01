@@ -13,6 +13,7 @@ from app.database import get_db
 from app.glpi.client import GlpiError, add_change_followup
 from app.health import check_connectors, check_postgres, check_redis, check_worker
 from app.models import PlaybookRun, RequestStatus, VMRequest
+from app.parsers.glpi_formcreator import normalize_vlan
 from app.playbooks.store import list_playbooks
 from app.provisioning.ansible_runner import PLAYBOOKS_DIR
 from app.queue import vm_queue
@@ -125,7 +126,11 @@ async def create_request(request: Request, db: Session = Depends(get_db)):
         glpi_ticket_id=None,
         requested_by=user.get("username"),
         environment=(form.get("environment") or "").strip() or None,
-        vlan=(form.get("vlan") or "").strip() or None,
+        # Même normalisation que le webhook GLPI (ne garde que le numéro) — sinon une
+        # demande saisie ici ("vlan 100") et une demande GLPI (normalisée en "100")
+        # produisent des valeurs différentes pour le même VLAN, qui ne correspondent pas
+        # à la même config de sous-réseau IPAM (voir PhpIpamProvider._resolve_subnet).
+        vlan=normalize_vlan((form.get("vlan") or "").strip()),
         cpu=_int_or_none("cpu"),
         ram_gb=_int_or_none("ram_gb"),
         disk_gb=_int_or_none("disk_gb"),

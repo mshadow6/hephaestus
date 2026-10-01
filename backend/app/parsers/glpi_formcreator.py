@@ -34,6 +34,17 @@ def _clean(raw: str) -> str:
     return html.unescape(re.sub(r"<[^>]+>", "", raw)).strip()
 
 
+def normalize_vlan(raw: str) -> str | None:
+    """Ne garde que le numéro du VLAN (ex: "vlan 100" ou "VLAN100" -> "100") — même
+    normalisation quelle que soit la source de la demande (GLPI ou /requests/new), pour
+    que la résolution de sous-réseau par VLAN (voir PhpIpamProvider._resolve_subnet) soit
+    cohérente peu importe par où la demande est arrivée. Sans ça, une demande GLPI et une
+    demande saisie à la main pouvaient produire des valeurs différentes pour le même VLAN
+    ("100" vs "vlan 100"), qui ne matchaient pas la même config de sous-réseau."""
+    match = re.search(r"\d+", raw or "")
+    return match.group() if match else None
+
+
 def extract_label_values(content: str) -> dict[str, str]:
     """Extrait toutes les paires label/valeur du contenu HTML, dans l'ordre du texte.
 
@@ -64,9 +75,9 @@ def parse_vm_request_fields(content: str) -> dict[str, str]:
         if label in FIELD_LABEL_MAP
     }
 
-    vlan_match = re.search(r"\d+", mapped["vlan"])
-    if vlan_match is None:
+    normalized_vlan = normalize_vlan(mapped["vlan"])
+    if normalized_vlan is None:
         raise ValueError(f"Impossible d'extraire un numéro de VLAN depuis '{mapped['vlan']}'")
-    mapped["vlan"] = vlan_match.group()
+    mapped["vlan"] = normalized_vlan
 
     return mapped

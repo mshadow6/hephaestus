@@ -65,6 +65,37 @@ ce qui est un compromis assumé, ce qui manque), pas juste une liste de bonnes i
   <img width="1920" height="1019" alt="Capture d’écran du 2026-10-01 14-13-37" src="https://github.com/user-attachments/assets/3227a3ad-b50f-409c-9c33-1afc3ba057e8" />
 
 
+## Champs d'une demande de VM
+
+Que la demande arrive par le formulaire natif ou par GLPI, l'app attend les mêmes
+informations de base :
+
+| Champ | Requis | Signification |
+|---|---|---|
+| `hostname` | oui | Nom de la VM à créer |
+| `os_template` | non | Quel template cloner — voir **limite importante** ci-dessous |
+| `cpu` | non | Nombre de vCPU |
+| `ram_gb` | non | RAM en Go |
+| `disk_gb` | non | Disque en Go |
+| `vlan` | non | VLAN cible — normalisé automatiquement à son seul numéro ("VLAN 100" → "100"), utilisé pour choisir le bon sous-réseau si l'IPAM en gère plusieurs (voir `/connections/<nom>/subnets`) |
+| `environment` | non | Libre (ex: "production") — disponible uniquement via `/requests/new`, pas transmis par le formulaire GLPI actuel |
+
+**Limite importante sur `os_template`** : Terraform ne clone que des templates déjà
+connus de `backend/app/provisioning/terraform_runner.py`
+(`TEMPLATE_VMID_MAP` — aujourd'hui une seule entrée d'exemple, `tmpl-debian13`). La
+valeur envoyée doit correspondre exactement à une clé de ce dictionnaire, sinon la
+création échoue avec "Template Proxmox inconnu". Ajoute tes propres templates dans ce
+fichier avant de tester avec autre chose que l'exemple fourni — ce n'est pas encore une
+liste éditable depuis l'interface.
+
+**Format attendu côté GLPI** (si tu utilises le webhook plutôt que le formulaire natif) :
+le contenu du ticket (`item.content`) doit contenir des lignes au format
+`<b>N) Label</b>: valeur<br>` (ce que produit nativement un formulaire GLPI Formcreator),
+avec ces labels précis (`backend/app/parsers/glpi_formcreator.py`) :
+`Nom de la VM`, `Template à cloner`, `vCPU`, `RAM`, `VLAN`, `Taille disque` — tous
+obligatoires côté GLPI (contrairement au formulaire natif, où seul `hostname` l'est).
+L'ordre n'a pas d'importance, le matching se fait sur le label.
+
 ## Prérequis
 
 - Docker + Docker Compose

@@ -9,7 +9,9 @@
   Plusieurs sous-réseaux possibles sur une même connexion IPAM — à la demande, le VLAN
   indiqué détermine quel sous-réseau utiliser (passerelle, DNS, plage d'IP allouable).
   Utile dès qu'il y a plus d'un VLAN à gérer (sinon, le sous-réseau unique du formulaire
-  de connexion suffit, pas besoin de cette page).
+  de connexion suffit, pas besoin de cette page). Le VLAN est normalisé automatiquement à
+  son numéro seul (ex: "VLAN 100" saisi à la demande devient "100") — entre juste le
+  numéro ici, quelle que soit la façon dont il a été tapé à la demande.
 </div>
 
 {% if error %}<div class="error-box" style="margin: 0 0 1rem;">{{ error }}</div>{% endif %}
@@ -56,7 +58,7 @@
   <form method="post" action="/connections/{{ conn.name }}/subnets" class="form-grid">
     <div class="form-field">
       <label>VLAN</label>
-      <input type="text" name="vlan" required placeholder="ex : vlan 100 (doit correspondre exactement à la valeur saisie à la demande de VM)">
+      <input type="text" name="vlan" required placeholder="ex : 100 (juste le numéro)">
     </div>
     <div class="form-field">
       <label>Passerelle</label>
