@@ -11,7 +11,10 @@ from app.routers import auth, connections, dashboard, playbooks, settings as set
 
 app = FastAPI(title="Hephaestus API")
 
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
+# max_age réduit (défaut Starlette : 14 jours) — une session admin qui traîne deux
+# semaines sur un poste partagé est un risque inutile pour un outil qui peut déclencher
+# de vraies créations/destructions de VM.
+app.add_middleware(SessionMiddleware, secret_key=settings.session_secret, max_age=12 * 60 * 60)
 
 app.mount(
     "/static",

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.auth import any_user_exists, get_user_by_username, hash_password, verify_password
+from app.auth import any_user_exists, get_user_by_username, hash_password, verify_password_constant_time
 from app.database import get_db
 from app.ldap_auth import authenticate as ldap_authenticate
 from app.models import User, UserRole
@@ -66,10 +66,15 @@ def login_submit(
 ):
     user = get_user_by_username(db, username)
 
-    if user is not None and user.source == "local" and user.password_hash:
-        if verify_password(password, user.password_hash):
-            request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
-            return RedirectResponse(url=next or "/", status_code=303)
+    # bcrypt tourne systématiquement (hash factice si le compte local n'existe pas) pour
+    # qu'un identifiant inconnu ne réponde pas sensiblement plus vite qu'un mauvais mot
+    # de passe — sinon le temps de réponse permettrait d'énumérer les comptes valides.
+    local_hash = user.password_hash if (user is not None and user.source == "local") else None
+    local_password_ok = verify_password_constant_time(password, local_hash)
+
+    if user is not None and user.source == "local" and local_hash and local_password_ok:
+        request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
+        return RedirectResponse(url=next or "/", status_code=303)
 
     elif user is None and ldap_authenticate(username, password):
         # Premier login LDAP réussi : on crée un compte local "fantôme" (pas de mot de

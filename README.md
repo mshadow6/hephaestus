@@ -38,6 +38,9 @@ derrière. L'hyperviseur, en revanche, **n'est pas encore abstrait dans le code*
 **Licence** : voir [`LICENSE`](LICENSE) — publié pour évaluation/test, pas une licence
 open-source permissive (voir ce fichier pour le détail).
 
+**Sécurité** : voir [`SECURITY.md`](SECURITY.md) — état réel audité (ce qui est solide,
+ce qui est un compromis assumé, ce qui manque), pas juste une liste de bonnes intentions.
+
 ## Ce que fait l'application
 
 - Reçoit une demande de VM — webhook GLPI (`/webhooks/glpi`) **ou** formulaire natif du
