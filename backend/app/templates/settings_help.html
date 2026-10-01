@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}Aide — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings">&larr; Retour aux paramètres</a>
+
+<div class="page-header"><h2>Aide</h2></div>
+
+<div class="card" style="margin-bottom: 1.25rem;">
+  <h3>Comment ça marche</h3>
+  <div style="padding: 0 1.25rem 1.25rem; line-height: 1.6;">
+    <p>Une demande de VM part d'une des deux sources possibles, indépendantes l'une de l'autre :</p>
+    <ul>
+      <li><strong>Webhook GLPI</strong> (<code>/webhooks/glpi</code>) — un ticket créé via un formulaire GLPI Formcreator</li>
+      <li><strong>Formulaire natif</strong> (<a href="/requests/new">Création de VM ▾ → Nouvelle demande</a>) — directement dans l'app, si activé ci-dessous</li>
+    </ul>
+    <p>Les deux créent exactement la même chose en interne et suivent ensuite le même circuit :</p>
+    <ol>
+      <li><strong>Validation humaine</strong> — un admin approuve ou rejette depuis <a href="/validations">Création de VM ▾ → En attente</a>. Rien ne se crée tant que personne n'a validé.</li>
+      <li><strong>Réservation IP</strong> — l'IPAM actif (phpIPAM aujourd'hui) réserve une IP statique, jamais de DHCP pour un serveur.</li>
+      <li><strong>Création de la VM</strong> — Terraform clone le template choisi sur le cluster Proxmox.</li>
+      <li><strong>Post-install Ansible</strong> — compte admin + clé SSH déployés, accès root fermé en SSH, puis les playbooks du catalogue sélectionnés à l'approbation.</li>
+      <li><strong>Notification</strong> — si la demande vient de GLPI, un commentaire est posté sur le ticket à chaque étape (approbation, rejet, fin). Silencieusement ignoré sinon.</li>
+    </ol>
+  </div>
+</div>
+
+<div class="card" style="margin-bottom: 1.25rem;">
+  <h3>Ce que tu peux faire</h3>
+  <div style="padding: 0 1.25rem 1.25rem; line-height: 1.6;">
+    <ul>
+      <li><strong>Connexions</strong> (<a href="/connections">/connections</a>) — Proxmox, phpIPAM, GLPI, dépôt Git de playbooks, LDAP. Chaque formulaire a un bouton "Tester la connexion" qui dit précisément ce qui ne va pas (hôte injoignable, identifiants refusés...).</li>
+      <li><strong>Catalogue de playbooks</strong> (<a href="/playbooks">/playbooks</a>) — ajoute tes propres playbooks (chemin dans ton dépôt Git), choisis s'ils sont obligatoires ou optionnels à l'approbation.</li>
+      <li><strong>Déploiement à la demande</strong> (<a href="/playbooks/deploy">/playbooks/deploy</a>) — relance un playbook contre n'importe quel hôte de ton inventaire, pas seulement les VMs créées par ce pipeline. Mode "dry-run" disponible pour simuler sans rien changer.</li>
+      <li><strong>Inventaire</strong> (<a href="/playbooks/inventory">/playbooks/inventory</a>) — groupes et hôtes gérés depuis l'interface, ou régénérés automatiquement depuis la découverte Proxmox.</li>
+      <li><strong>Sous-réseaux IPAM par VLAN</strong> — sur une connexion phpIPAM, plusieurs VLAN/sous-réseaux possibles (<code>/connections/&lt;nom&gt;/subnets</code>), résolus automatiquement selon le VLAN de la demande.</li>
+      <li><strong>HTTPS</strong> (<a href="/settings/tls">/settings/tls</a>) — certificat auto-signé en un clic, ou importe le tien.</li>
+      <li><strong>Utilisateurs</strong> (<a href="/settings/users">/settings/users</a>) — comptes locaux ou LDAP, rôles admin/lecture seule, réactivation d'un compte verrouillé.</li>
+      <li><strong>Journal d'audit</strong> — connexions et requêtes, dans <code>/app/logs/audit.log</code> (pas encore de vue dans l'interface — fichier à consulter via <code>docker compose exec backend tail -f /app/logs/audit.log</code>).</li>
+    </ul>
+  </div>
+</div>
+
+<div class="card">
+  <h3>Support</h3>
+  <div style="padding: 0 1.25rem 1.25rem; line-height: 1.6;">
+    <p>
+      Le support se passe sur GitHub : <a href="https://github.com/mshadow6/hephaestus" target="_blank" rel="noopener">github.com/mshadow6/hephaestus</a>.
+      Un bug, une question, une idée — ouvre une issue là-bas plutôt que d'écrire ailleurs.
+    </p>
+    <p class="help">
+      Voir aussi <code>README.md</code> (installation), <code>SECURITY.md</code> (état de
+      sécurité réel) et <code>JOURNAL.md</code> à la racine du dépôt pour le détail
+      technique complet.
+    </p>
+  </div>
+</div>
+{% endblock %}

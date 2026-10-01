@@ -14,6 +14,14 @@
       document.documentElement.setAttribute("data-theme", theme);
     })();
 
+    (function () {
+      // Petites phrases d'aide (class="help") masquées par défaut — décluttering demandé
+      // par le user, "ça fait trop de texte partout" — révélées via le bouton "❓ Aide"
+      // à côté du thème, mémorisé pareil (localStorage).
+      var helpVisible = localStorage.getItem("helpVisible") === "on";
+      document.documentElement.setAttribute("data-help", helpVisible ? "on" : "off");
+    })();
+
     function promptRejectReason(form) {
       var reason = prompt("Pourquoi refuser cette demande ? (obligatoire — envoyé sur le ticket GLPI)");
       if (reason === null || reason.trim() === "") return false;
@@ -94,7 +102,14 @@
       {% if current_user %}<span class="nav-username">{{ current_user.username }}</span>{% endif %}
       {% if current_user and current_user.role == 'admin' %}
       <a href="/settings" class="icon-link" title="Paramètres">⚙️</a>
+      <a href="/settings/help" class="icon-link" title="Aide — fonctionnement, possibilités, support">❓</a>
       {% endif %}
+      <button type="button" class="theme-toggle" title="Afficher/masquer les textes d'aide" onclick="
+        var html = document.documentElement;
+        var next = html.getAttribute('data-help') === 'on' ? 'off' : 'on';
+        html.setAttribute('data-help', next);
+        localStorage.setItem('helpVisible', next);
+      ">💡</button>
       <button type="button" class="theme-toggle" onclick="
         var html = document.documentElement;
         var next = html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';

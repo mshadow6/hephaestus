@@ -27,6 +27,13 @@ def settings_home(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/help")
+def help_page(request: Request, db: Session = Depends(get_db)):
+    return templates.TemplateResponse(
+        request, "settings_help.html", {"pending_count": pending_approval_count(db)}
+    )
+
+
 @router.post("/features")
 def update_features(native_vm_form_enabled: str = Form(None)):
     save_features({"native_vm_form_enabled": native_vm_form_enabled is not None})

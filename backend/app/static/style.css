@@ -431,6 +431,11 @@ html[data-theme="dark"] .type-badge.not-implemented { background: #451a03; color
   margin-top: 0.2rem;
 }
 
+/* Textes d'aide (class="help", n'importe où — pas seulement .form-field) masqués par
+   défaut, révélés via le bouton "💡 Aide" dans la barre du haut (voir base.html). */
+.help { display: none; }
+html[data-help="on"] .help { display: block; }
+
 .form-field input[type="text"],
 .form-field input[type="password"],
 .form-field input[type="url"],
