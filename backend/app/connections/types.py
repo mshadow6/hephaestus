@@ -52,13 +52,18 @@ PROVIDER_TYPES: dict[str, ProviderType] = {
             ConnectionField("username", "Utilisateur (login API, pas app_code — phpIPAM exige "
                                           "une vraie connexion utilisateur pour obtenir un token)"),
             ConnectionField("password", "Mot de passe", input_type="password"),
-            ConnectionField("gateway", "Passerelle du sous-réseau géré", help_text="ex: 192.0.2.254"),
+            ConnectionField("gateway", "Passerelle (sous-réseau unique, sans VLAN)", required=False,
+                             help_text="ex: 192.0.2.254 — uniquement si un seul sous-réseau/VLAN à "
+                                        "gérer. Pour plusieurs VLAN, laisse vide et configure-les "
+                                        "sur la page \"Sous-réseaux (VLAN)\" après avoir créé la "
+                                        "connexion."),
             ConnectionField("dns_servers", "Serveurs DNS (séparés par virgule)", required=False,
                              help_text="ex: 192.0.2.254"),
-            ConnectionField("allocation_range_start", "Première IP allouable",
+            ConnectionField("allocation_range_start", "Première IP allouable", required=False,
                              help_text="ex: 192.0.2.100 — jamais en dehors de cette plage "
                                         "(hors DHCP de la box, à vérifier avant de configurer)"),
-            ConnectionField("allocation_range_end", "Dernière IP allouable", help_text="ex: 192.0.2.200"),
+            ConnectionField("allocation_range_end", "Dernière IP allouable", required=False,
+                             help_text="ex: 192.0.2.200"),
         ],
     ),
     "efficientip": ProviderType(

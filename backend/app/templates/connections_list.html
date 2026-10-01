@@ -44,6 +44,9 @@
           </form>
         </td>
         <td>
+          {% if c.type == "phpipam" %}
+          <a href="/connections/{{ c.name }}/subnets" class="btn btn-sm btn-secondary">Sous-réseaux (VLAN)</a>
+          {% endif %}
           <form method="post" action="/connections/{{ c.name }}/delete"
                 onsubmit="return confirm('Supprimer la connexion {{ c.name }} ?');" style="display:inline">
             <button class="btn btn-sm btn-danger" type="submit">Supprimer</button>

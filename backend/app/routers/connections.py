@@ -108,6 +108,66 @@ def delete(name: str):
     return RedirectResponse(url="/connections", status_code=303)
 
 
+@router.get("/{name}/subnets")
+def subnets_list(name: str, request: Request, db: Session = Depends(get_db)):
+    """Sous-réseaux par VLAN pour une connexion IPAM — plusieurs sous-réseaux possibles
+    par connexion (ex: EfficientIP avec des dizaines de VLAN), chacun résolu au moment de
+    la demande à partir du VLAN indiqué (voir PhpIpamProvider._resolve_subnet). Les 4
+    champs "plats" du formulaire de connexion restent un fallback pour les connexions à
+    un seul sous-réseau, jamais écrasés par cette page."""
+    conn = get_connection(name)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Connexion introuvable")
+    subnets = [s for s in (conn.config.get("subnets") or []) if s.get("vlan") is not None]
+    return templates.TemplateResponse(
+        request, "connections_subnets.html",
+        {
+            "conn": conn, "subnets": subnets,
+            "pending_count": pending_approval_count(db),
+            "error": request.query_params.get("error"),
+        },
+    )
+
+
+@router.post("/{name}/subnets")
+async def subnets_add(name: str, request: Request):
+    conn = get_connection(name)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Connexion introuvable")
+    form = await request.form()
+    vlan = (form.get("vlan") or "").strip()
+    gateway = (form.get("gateway") or "").strip()
+    range_start = (form.get("allocation_range_start") or "").strip()
+    range_end = (form.get("allocation_range_end") or "").strip()
+    dns_servers = (form.get("dns_servers") or "").strip()
+    if not (vlan and gateway and range_start and range_end):
+        return RedirectResponse(
+            url=f"/connections/{name}/subnets?error=VLAN%2C+passerelle+et+plage+requis",
+            status_code=303,
+        )
+
+    subnets = [s for s in (conn.config.get("subnets") or []) if s.get("vlan") is not None]
+    subnets = [s for s in subnets if s.get("vlan") != vlan]  # remplace si le VLAN existe déjà
+    subnets.append({
+        "vlan": vlan, "gateway": gateway, "dns_servers": dns_servers,
+        "allocation_range_start": range_start, "allocation_range_end": range_end,
+    })
+    conn.config["subnets"] = subnets
+    save_connection(conn)
+    return RedirectResponse(url=f"/connections/{name}/subnets", status_code=303)
+
+
+@router.post("/{name}/subnets/{vlan}/delete")
+def subnets_delete(name: str, vlan: str):
+    conn = get_connection(name)
+    if conn is None:
+        raise HTTPException(status_code=404, detail="Connexion introuvable")
+    subnets = [s for s in (conn.config.get("subnets") or []) if s.get("vlan") not in (None, vlan)]
+    conn.config["subnets"] = subnets
+    save_connection(conn)
+    return RedirectResponse(url=f"/connections/{name}/subnets", status_code=303)
+
+
 @router.post("/{name}/toggle-enabled")
 def toggle_enabled(name: str):
     conn = get_connection(name)

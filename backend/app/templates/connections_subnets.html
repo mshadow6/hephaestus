@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Sous-réseaux — {{ conn.name }} — Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/connections">&larr; Retour aux connexions</a>
+
+<div class="page-header"><h2>Sous-réseaux par VLAN — {{ conn.name }}</h2></div>
+
+<div class="help" style="margin: 0 0 1rem;">
+  Plusieurs sous-réseaux possibles sur une même connexion IPAM — à la demande, le VLAN
+  indiqué détermine quel sous-réseau utiliser (passerelle, DNS, plage d'IP allouable).
+  Utile dès qu'il y a plus d'un VLAN à gérer (sinon, le sous-réseau unique du formulaire
+  de connexion suffit, pas besoin de cette page).
+</div>
+
+{% if error %}<div class="error-box" style="margin: 0 0 1rem;">{{ error }}</div>{% endif %}
+
+<div class="card" style="margin-bottom: 1.25rem;">
+  {% if subnets %}
+  <table>
+    <thead>
+      <tr>
+        <th>VLAN</th>
+        <th>Passerelle</th>
+        <th>DNS</th>
+        <th>Plage allouable</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in subnets %}
+      <tr>
+        <td class="mono">{{ s.vlan }}</td>
+        <td class="mono">{{ s.gateway }}</td>
+        <td class="mono">{{ s.dns_servers or "—" }}</td>
+        <td class="mono">{{ s.allocation_range_start }} → {{ s.allocation_range_end }}</td>
+        <td>
+          <form method="post" action="/connections/{{ conn.name }}/subnets/{{ s.vlan }}/delete"
+                onsubmit="return confirm('Retirer le sous-réseau du VLAN « {{ s.vlan }} » ?');">
+            <button type="submit" class="btn btn-sm btn-danger">Retirer</button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">
+    Aucun sous-réseau par VLAN configuré — le champ "Passerelle" du formulaire de
+    connexion sert de sous-réseau unique en attendant (quel que soit le VLAN demandé).
+  </div>
+  {% endif %}
+</div>
+
+<div class="card">
+  <h3>Ajouter / remplacer un sous-réseau</h3>
+  <form method="post" action="/connections/{{ conn.name }}/subnets" class="form-grid">
+    <div class="form-field">
+      <label>VLAN</label>
+      <input type="text" name="vlan" required placeholder="ex : vlan 100 (doit correspondre exactement à la valeur saisie à la demande de VM)">
+    </div>
+    <div class="form-field">
+      <label>Passerelle</label>
+      <input type="text" name="gateway" required placeholder="ex : 192.0.2.254">
+    </div>
+    <div class="form-field">
+      <label>Serveurs DNS (séparés par virgule)</label>
+      <input type="text" name="dns_servers" placeholder="ex : 192.0.2.254">
+    </div>
+    <div class="form-field">
+      <label>Première IP allouable</label>
+      <input type="text" name="allocation_range_start" required placeholder="ex : 192.0.2.100">
+    </div>
+    <div class="form-field">
+      <label>Dernière IP allouable</label>
+      <input type="text" name="allocation_range_end" required placeholder="ex : 192.0.2.200">
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">Enregistrer</button>
+    </div>
+  </form>
+</div>
+{% endblock %}
