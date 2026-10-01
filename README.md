@@ -1,26 +1,54 @@
 # Hephaestus
 
-Provisioning de VM self-hosted, sans étape manuelle : un ticket GLPI → validation humaine
-sur un dashboard web → réservation IP (IPAM) → création de la VM (Terraform) → post-install
-(Ansible) → notification sur le ticket d'origine.
+Provisioning de VM self-hosted, sans étape manuelle : une demande de VM → validation
+humaine sur un dashboard web → réservation IP (IPAM) → création de la VM (Terraform) →
+post-install (Ansible) → notification à la source de la demande.
+
+```mermaid
+flowchart LR
+    subgraph Entrée["Point d'entrée (pluggable)"]
+        A1[Webhook GLPI]
+        A2[Formulaire natif /requests/new]
+        A3["(autre ITSM, API...)"]
+    end
+    A1 & A2 & A3 --> B[Demande de VM\nen attente de validation]
+    B -->|humain, dashboard| C{Approuvée ?}
+    C -->|non| R[Rejetée + notification]
+    C -->|oui| D[Réservation IP\nIPAM]
+    D --> E["Création de la VM\nTerraform (hyperviseur)"]
+    E --> F["Post-install\nAnsible (catalogue de playbooks)"]
+    F --> G[Notification de fin\nvers la source d'origine]
+```
 
 **Scope actuel (v1)** : Proxmox + VM Linux, testé de bout en bout sur une vraie
 infrastructure. VMware/vCenter et le post-install Windows (WinRM) existent en brouillon
 dans le dépôt de playbooks mais n'ont jamais été exécutés contre un vrai vCenter — à
 considérer comme non fonctionnel pour l'instant.
 
+**Important sur le vocabulaire** : "GLPI" et "Proxmox" sont les **premiers** providers
+implémentés pour chaque rôle (point d'entrée des demandes, hyperviseur), pas une limite
+définitive du projet. L'IPAM est déjà construit comme une interface pluggable (phpIPAM
+aujourd'hui, un autre backend demain sans toucher au reste du pipeline — voir
+`backend/app/ipam/`). Le point d'entrée des demandes suit le même principe : le webhook
+GLPI et le formulaire natif (`/requests/new`) créent tous les deux exactement le même
+objet interne et suivent ensuite le même pipeline, sans distinction de traitement
+derrière. L'hyperviseur, en revanche, **n'est pas encore abstrait dans le code** — voir
+"Limites connues" plus bas.
+
 **Licence** : voir [`LICENSE`](LICENSE) — publié pour évaluation/test, pas une licence
 open-source permissive (voir ce fichier pour le détail).
 
 ## Ce que fait l'application
 
-- Reçoit une demande de VM (webhook GLPI, ou appel direct de l'API)
+- Reçoit une demande de VM — webhook GLPI (`/webhooks/glpi`) **ou** formulaire natif du
+  dashboard (`/requests/new`), les deux créent la même chose et suivent le même circuit
 - La met en attente de validation par un humain sur un dashboard web
 - Une fois approuvée : réserve une IP (phpIPAM par défaut, interface branchée pour
-  d'autres providers), crée la VM via Terraform (provider Proxmox), puis exécute un
-  post-install Ansible (compte admin + clé SSH, fermeture de l'accès root en SSH, et les
-  playbooks de ton choix)
-- Notifie le ticket GLPI d'origine à chaque étape (approbation, rejet, fin de création)
+  d'autres providers IPAM), crée la VM via Terraform (provider Proxmox aujourd'hui), puis
+  exécute un post-install Ansible (compte admin + clé SSH, fermeture de l'accès root en
+  SSH, et les playbooks de ton choix)
+- Notifie le ticket GLPI d'origine à chaque étape (approbation, rejet, fin de création) —
+  silencieusement ignoré si la demande ne vient pas de GLPI
 - Catalogue de playbooks gérable depuis l'interface (obligatoire/optionnel configurable
   par toi, pas figé dans le code), déploiement à la demande contre n'importe quel hôte de
   ton inventaire (pas seulement les VMs créées par ce pipeline), sortie en direct
@@ -114,10 +142,15 @@ d'installation.
 
 ## Limites connues
 
-- VMware/vCenter : code présent en brouillon (collections `community.vmware`), jamais
-  testé contre un vrai vCenter
+- **Hyperviseur non abstrait** : contrairement à l'IPAM (vraie interface + providers),
+  `backend/app/provisioning/terraform_runner.py` est aujourd'hui câblé en dur pour
+  Proxmox (chemin du module Terraform, variables, tout). Faire de VMware/Hyper-V/autre un
+  second provider demanderait de construire la même abstraction que l'IPAM, pas juste
+  d'écrire du Terraform en plus — pas fait.
+- VMware/vCenter : code Ansible présent en brouillon (collections `community.vmware`),
+  jamais testé contre un vrai vCenter
 - Post-install Windows (WinRM, vérification d'agent) : brouillon, jamais testé
-- Un seul provider Terraform (Proxmox) ; l'abstraction IPAM supporte plusieurs backends,
-  seul phpIPAM est implémenté pour de vrai aujourd'hui
+- L'abstraction IPAM supporte plusieurs backends dans l'interface, seul phpIPAM est
+  implémenté pour de vrai aujourd'hui
 - L'agrandissement de disque générique (LVM/partition) n'a pas été testé contre un hôte
   réel — vérifie sur une VM jetable avant tout usage en production
