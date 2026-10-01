@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Nouvelle demande de VM — Hephaestus{% endblock %}
+{% block content %}
+<div class="page-header"><h2>Création de VM — Nouvelle demande</h2></div>
+
+<div class="card">
+  <div class="help" style="padding: 1rem 1.25rem 0;">
+    Point d'entrée natif, en plus du webhook GLPI (<code>/webhooks/glpi</code>) — les deux
+    créent exactement la même demande et suivent ensuite le même circuit (validation,
+    réservation IP, création, post-install). GLPI n'est pas une dépendance du pipeline,
+    juste une façon parmi d'autres de déclencher une demande.
+  </div>
+
+  {% if error %}<div class="error-box" style="margin: 1rem 1.25rem 0;">{{ error }}</div>{% endif %}
+
+  <form method="post" action="/requests/new">
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="hostname">Nom d'hôte</label>
+        <input type="text" id="hostname" name="hostname" required placeholder="ex : srv-app-03">
+      </div>
+      <div class="form-field">
+        <label for="os_template">Template / image</label>
+        <input type="text" id="os_template" name="os_template" placeholder="ex : debian-12">
+      </div>
+      <div class="form-field">
+        <label for="environment">Environnement</label>
+        <input type="text" id="environment" name="environment" placeholder="ex : production">
+      </div>
+      <div class="form-field">
+        <label for="vlan">VLAN</label>
+        <input type="text" id="vlan" name="vlan" placeholder="ex : vlan 100">
+      </div>
+      <div class="form-field">
+        <label for="cpu">vCPU</label>
+        <input type="number" id="cpu" name="cpu" min="1">
+      </div>
+      <div class="form-field">
+        <label for="ram_gb">RAM (Go)</label>
+        <input type="number" id="ram_gb" name="ram_gb" min="1">
+      </div>
+      <div class="form-field">
+        <label for="disk_gb">Disque (Go)</label>
+        <input type="number" id="disk_gb" name="disk_gb" min="1">
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">Soumettre la demande</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

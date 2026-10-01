@@ -94,6 +94,51 @@ async def list_requests(request: Request, db: Session = Depends(get_db)):
     )
 
 
+@router.get("/requests/new")
+def new_request_form(request: Request, db: Session = Depends(get_db)):
+    """Formulaire natif de demande de VM — second point d'entrée possible en plus du
+    webhook GLPI (/webhooks/glpi), tous les deux créent le même VMRequest et suivent
+    ensuite exactement le même pipeline (validation -> IPAM -> Terraform -> Ansible).
+    GLPI n'est qu'une source de demandes parmi d'autres possibles, pas une dépendance du
+    pipeline lui-même — voir VMRequest.glpi_ticket_id (nullable) et _notify_glpi (no-op
+    silencieux si pas de ticket associé)."""
+    return templates.TemplateResponse(
+        request, "requests_new.html",
+        {"pending_count": pending_approval_count(db), "error": request.query_params.get("error")},
+    )
+
+
+@router.post("/requests/new")
+async def create_request(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    hostname = (form.get("hostname") or "").strip()
+    if not hostname:
+        return RedirectResponse(url="/requests/new?error=Nom+d%27hôte+requis", status_code=303)
+
+    def _int_or_none(key: str) -> int | None:
+        raw = (form.get(key) or "").strip()
+        return int(raw) if raw else None
+
+    user = request.session.get("user") or {}
+    vm_request = VMRequest(
+        hostname=hostname,
+        glpi_ticket_id=None,
+        requested_by=user.get("username"),
+        environment=(form.get("environment") or "").strip() or None,
+        vlan=(form.get("vlan") or "").strip() or None,
+        cpu=_int_or_none("cpu"),
+        ram_gb=_int_or_none("ram_gb"),
+        disk_gb=_int_or_none("disk_gb"),
+        os_template=(form.get("os_template") or "").strip() or None,
+        raw_payload={"source": "native_form", "submitted_by": user.get("username")},
+        status=RequestStatus.pending_approval,
+    )
+    db.add(vm_request)
+    db.commit()
+    db.refresh(vm_request)
+    return RedirectResponse(url=f"/vm/{vm_request.id}", status_code=303)
+
+
 @router.get("/deployments")
 def deployments(
     request: Request, db: Session = Depends(get_db),
