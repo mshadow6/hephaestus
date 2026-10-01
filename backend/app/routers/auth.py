@@ -1,3 +1,5 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
@@ -9,6 +11,10 @@ from app.models import User, UserRole
 from app.templating import templates
 
 router = APIRouter(include_in_schema=False)
+
+LOCKOUT_THRESHOLD = 5          # échecs avant un verrouillage temporaire
+LOCKOUT_DURATION = timedelta(minutes=1)
+DISABLE_THRESHOLD = 10         # échecs avant verrouillage définitif (hors compte protégé)
 
 
 @router.get("/setup")
@@ -41,6 +47,7 @@ def setup_submit(
     user = User(
         username=username, password_hash=hash_password(password),
         role=UserRole.admin, source="local",
+        is_protected=True,  # tout premier admin = compte de secours, jamais verrouillable définitivement
     )
     db.add(user)
     db.commit()
@@ -65,6 +72,26 @@ def login_submit(
     db: Session = Depends(get_db),
 ):
     user = get_user_by_username(db, username)
+    now = datetime.utcnow()
+
+    # Anti-bruteforce : s'applique aux comptes LOCAL et LDAP (le bind échoué compte pareil
+    # — le risque de bruteforce est côté app, pas côté annuaire). Vérifié avant même de
+    # tenter l'authentification, pour qu'un compte verrouillé ne consomme pas une tentative
+    # LDAP en plus (pas de round-trip réseau inutile vers l'annuaire).
+    if user is not None:
+        if user.disabled:
+            return templates.TemplateResponse(
+                request, "login.html",
+                {"error": "Compte désactivé après trop d'échecs — contacte un administrateur.", "next": next},
+                status_code=403,
+            )
+        if user.locked_until is not None and user.locked_until > now:
+            wait_s = int((user.locked_until - now).total_seconds()) + 1
+            return templates.TemplateResponse(
+                request, "login.html",
+                {"error": f"Trop de tentatives — réessaie dans {wait_s}s.", "next": next},
+                status_code=429,
+            )
 
     # bcrypt tourne systématiquement (hash factice si le compte local n'existe pas) pour
     # qu'un identifiant inconnu ne réponde pas sensiblement plus vite qu'un mauvais mot
@@ -72,10 +99,9 @@ def login_submit(
     local_hash = user.password_hash if (user is not None and user.source == "local") else None
     local_password_ok = verify_password_constant_time(password, local_hash)
 
+    auth_ok = False
     if user is not None and user.source == "local" and local_hash and local_password_ok:
-        request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
-        return RedirectResponse(url=next or "/", status_code=303)
-
+        auth_ok = True
     elif user is None and ldap_authenticate(username, password):
         # Premier login LDAP réussi : on crée un compte local "fantôme" (pas de mot de
         # passe stocké, l'auth repasse par l'annuaire à chaque fois) pour pouvoir gérer
@@ -83,12 +109,25 @@ def login_submit(
         user = User(username=username, password_hash=None, role=UserRole.viewer, source="ldap")
         db.add(user)
         db.commit()
+        auth_ok = True
+    elif user is not None and user.source == "ldap" and ldap_authenticate(username, password):
+        auth_ok = True
+
+    if auth_ok:
+        user.failed_login_attempts = 0
+        user.locked_until = None
+        db.commit()
         request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
         return RedirectResponse(url=next or "/", status_code=303)
 
-    elif user is not None and user.source == "ldap" and ldap_authenticate(username, password):
-        request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
-        return RedirectResponse(url=next or "/", status_code=303)
+    if user is not None:
+        user.failed_login_attempts += 1
+        if user.failed_login_attempts >= DISABLE_THRESHOLD and not user.is_protected:
+            user.disabled = True
+            user.locked_until = None
+        elif user.failed_login_attempts % LOCKOUT_THRESHOLD == 0:
+            user.locked_until = now + LOCKOUT_DURATION
+        db.commit()
 
     return templates.TemplateResponse(
         request, "login.html",

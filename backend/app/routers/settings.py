@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
@@ -26,7 +28,10 @@ def users_list(request: Request, db: Session = Depends(get_db)):
     users = db.scalars(select(User).order_by(User.username)).all()
     return templates.TemplateResponse(
         request, "settings_users.html",
-        {"users": users, "roles": UserRole, "pending_count": pending_approval_count(db), "error": None},
+        {
+            "users": users, "roles": UserRole, "pending_count": pending_approval_count(db),
+            "error": None, "now": datetime.utcnow(),
+        },
     )
 
 
@@ -46,7 +51,7 @@ def users_create(
         return templates.TemplateResponse(
             request, "settings_users.html",
             {"users": users, "roles": UserRole, "pending_count": pending_approval_count(db),
-             "error": message},
+             "error": message, "now": datetime.utcnow()},
         )
 
     if len(password) < 8:
@@ -56,6 +61,17 @@ def users_create(
 
     db.add(User(username=username, password_hash=hash_password(password), role=role_enum, source="local"))
     db.commit()
+    return RedirectResponse(url="/settings/users", status_code=303)
+
+
+@router.post("/users/{user_id}/unlock")
+def users_unlock(user_id: int, db: Session = Depends(get_db)):
+    user = db.get(User, user_id)
+    if user is not None:
+        user.disabled = False
+        user.locked_until = None
+        user.failed_login_attempts = 0
+        db.commit()
     return RedirectResponse(url="/settings/users", status_code=303)
 
 

@@ -122,3 +122,15 @@ class User(Base):
     role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"), default=UserRole.admin)
     source: Mapped[str] = mapped_column(String(16), default="local")  # "local" | "ldap"
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    # Anti-bruteforce : 5 échecs -> verrouillage 1 min (auto-expire via locked_until) ;
+    # 5 échecs de plus -> disabled=True (verrouillage définitif, un admin doit réactiver
+    # depuis /settings/users). S'applique aussi aux comptes LDAP (le bind échoué compte
+    # pareil) — la source de l'échec ne change rien au risque de bruteforce côté app.
+    failed_login_attempts: Mapped[int] = mapped_column(Integer, default=0)
+    locked_until: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    disabled: Mapped[bool] = mapped_column(default=False)
+    # Compte de secours (le tout premier admin créé à /setup) : jamais verrouillable
+    # définitivement par le mécanisme ci-dessus, pour ne jamais perdre tout accès à sa
+    # propre installation. Reste soumis au verrouillage temporaire de 1 min.
+    is_protected: Mapped[bool] = mapped_column(default=False)

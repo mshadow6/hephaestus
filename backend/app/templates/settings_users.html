@@ -8,15 +8,29 @@
 <div class="card">
   {% if users %}
   <table>
-    <thead><tr><th>Identifiant</th><th>Rôle</th><th>Source</th><th>Créé le</th><th></th></tr></thead>
+    <thead><tr><th>Identifiant</th><th>Rôle</th><th>Source</th><th>Statut</th><th>Créé le</th><th></th></tr></thead>
     <tbody>
       {% for u in users %}
       <tr>
-        <td>{{ u.username }}</td>
+        <td>{{ u.username }}{% if u.is_protected %} <span class="info-note" title="Compte de secours — ne peut jamais être verrouillé définitivement">🛡</span>{% endif %}</td>
         <td><span class="type-badge">{{ "Admin" if u.role.value == "admin" else "Lecture seule" }}</span></td>
         <td class="mono">{{ u.source }}</td>
+        <td>
+          {% if u.disabled %}
+          <span class="badge status-failed">Désactivé ({{ u.failed_login_attempts }} échecs)</span>
+          {% elif u.locked_until and u.locked_until > now %}
+          <span class="badge status-pending">Verrouillé temporairement</span>
+          {% else %}
+          <span class="dot on"></span> actif
+          {% endif %}
+        </td>
         <td>{{ u.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
         <td>
+          {% if u.disabled or u.failed_login_attempts > 0 %}
+          <form method="post" action="/settings/users/{{ u.id }}/unlock" style="display:inline">
+            <button type="submit" class="btn btn-sm btn-secondary">Réactiver</button>
+          </form>
+          {% endif %}
           <form method="post" action="/settings/users/{{ u.id }}/delete"
                 onsubmit="return confirm('Supprimer l\'utilisateur {{ u.username }} ?');" style="display:inline">
             <button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
