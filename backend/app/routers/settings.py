@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Request, UploadFile
 from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -173,9 +173,24 @@ def tls_generate(common_name: str = Form(...)):
 
 
 @router.post("/tls/upload")
-def tls_upload(cert_pem: str = Form(...), key_pem: str = Form(...)):
+async def tls_upload(
+    cert_file: UploadFile,
+    key_file: UploadFile,
+    chain_file: UploadFile | None = None,
+):
     try:
-        save_uploaded(cert_pem, key_pem)
+        cert_pem = (await cert_file.read()).decode("utf-8", errors="replace")
+        key_pem = (await key_file.read()).decode("utf-8", errors="replace")
+        chain_pem = None
+        if chain_file is not None and chain_file.filename:
+            chain_pem = (await chain_file.read()).decode("utf-8", errors="replace")
+    except UnicodeDecodeError:
+        return RedirectResponse(
+            url="/settings/tls?error=Fichier+illisible+(attendu+du+PEM+en+texte)", status_code=303
+        )
+
+    try:
+        save_uploaded(cert_pem, key_pem, chain_pem)
         tls_apply(True)
     except TlsError as exc:
         return RedirectResponse(url=f"/settings/tls?error={exc}", status_code=303)

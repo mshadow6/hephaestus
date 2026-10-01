@@ -131,10 +131,18 @@ def generate_self_signed(common_name: str) -> None:
     KEY_PATH.chmod(0o600)
 
 
-def save_uploaded(cert_pem: str, key_pem: str) -> None:
+def save_uploaded(cert_pem: str, key_pem: str, chain_pem: str | None = None) -> None:
     """Valide que le certificat et la clé fournis sont lisibles et correspondent (même
     clé publique des deux côtés) avant de les installer — mieux vaut échouer ici
-    proprement que de casser le proxy avec une paire invalide."""
+    proprement que de casser le proxy avec une paire invalide.
+
+    `chain_pem` : autorité(s) intermédiaire(s)/racine ayant signé le certificat, si le
+    certificat n'est pas auto-signé — concaténée après le certificat dans le même fichier
+    (format attendu par la directive `tls` de Caddy : feuille puis chaîne, dans cet
+    ordre). Chaque bloc PEM qu'elle contient est vérifié individuellement (lisible), pas
+    besoin de valider le chaînage cryptographique complet ici — Caddy/le navigateur s'en
+    chargeront au moment de l'usage réel.
+    """
     try:
         cert = x509.load_pem_x509_certificate(cert_pem.encode())
     except ValueError as exc:
@@ -153,8 +161,17 @@ def save_uploaded(cert_pem: str, key_pem: str) -> None:
     if cert_pubkey != key_pubkey:
         raise TlsError("Le certificat et la clé privée ne correspondent pas.")
 
+    full_chain = cert_pem.strip() + "\n"
+    if chain_pem and chain_pem.strip():
+        try:
+            chain_certs = x509.load_pem_x509_certificates(chain_pem.encode())
+        except ValueError as exc:
+            raise TlsError(f"Chaîne de certificats (autorité) invalide : {exc}") from exc
+        for block in chain_certs:
+            full_chain += block.public_bytes(serialization.Encoding.PEM).decode()
+
     TLS_DIR.mkdir(parents=True, exist_ok=True)
-    CERT_PATH.write_text(cert_pem)
+    CERT_PATH.write_text(full_chain)
     KEY_PATH.write_text(key_pem)
     KEY_PATH.chmod(0o600)
 

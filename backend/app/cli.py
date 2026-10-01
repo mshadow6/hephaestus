@@ -10,9 +10,15 @@ Usage (depuis le conteneur `backend`/`worker`, qui a `/app/config/providers` mon
     python -m app.cli connection set <name> --type proxmox --active \
         --field api_url=https://192.0.2.20:8006 --field api_token=... --field node=pve-node-01
     python -m app.cli connection delete <name>
+
+    python -m app.cli tls status
+    python -m app.cli tls generate --cn 192.0.2.50
+    python -m app.cli tls set --cert cert.pem --key key.pem [--chain chain.pem]
+    python -m app.cli tls disable
 """
 import argparse
 import sys
+from pathlib import Path
 
 from app.connections.store import (
     Connection,
@@ -124,6 +130,62 @@ def cmd_delete(args) -> int:
     return 1
 
 
+def cmd_tls_status(_args) -> int:
+    from app.tls import cert_info, load_state
+
+    state = load_state()
+    print(f"HTTPS : {'activé' if state.get('enabled') else 'désactivé'}")
+    info = cert_info()
+    if info:
+        print(f"Certificat : {info['subject']}")
+        print(f"Auto-signé : {info['self_signed']}")
+        print(f"Valide du {info['not_valid_before']} au {info['not_valid_after']}")
+    else:
+        print("Aucun certificat installé.")
+    return 0
+
+
+def cmd_tls_generate(args) -> int:
+    from app.tls import TlsError, apply, generate_self_signed
+
+    try:
+        generate_self_signed(args.cn)
+        apply(True)
+    except TlsError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print(f"Certificat auto-signé généré pour '{args.cn}' et HTTPS activé.")
+    return 0
+
+
+def cmd_tls_set(args) -> int:
+    from app.tls import TlsError, apply, save_uploaded
+
+    cert_pem = Path(args.cert).read_text()
+    key_pem = Path(args.key).read_text()
+    chain_pem = Path(args.chain).read_text() if args.chain else None
+    try:
+        save_uploaded(cert_pem, key_pem, chain_pem)
+        apply(True)
+    except TlsError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print("Certificat installé et HTTPS activé.")
+    return 0
+
+
+def cmd_tls_disable(_args) -> int:
+    from app.tls import TlsError, apply
+
+    try:
+        apply(False)
+    except TlsError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+    print("HTTPS désactivé, retour en HTTP.")
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m app.cli")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -157,6 +219,25 @@ def build_parser() -> argparse.ArgumentParser:
     p_delete = conn_sub.add_parser("delete", help="Supprimer une connexion")
     p_delete.add_argument("name")
     p_delete.set_defaults(func=cmd_delete)
+
+    tls = sub.add_parser("tls", help="Gérer le certificat HTTPS du proxy")
+    tls_sub = tls.add_subparsers(dest="tls_command", required=True)
+
+    t_status = tls_sub.add_parser("status", help="État HTTPS et détail du certificat installé")
+    t_status.set_defaults(func=cmd_tls_status)
+
+    t_generate = tls_sub.add_parser("generate", help="Générer un certificat auto-signé et activer HTTPS")
+    t_generate.add_argument("--cn", required=True, help="Domaine ou IP utilisé pour accéder à l'app")
+    t_generate.set_defaults(func=cmd_tls_generate)
+
+    t_set = tls_sub.add_parser("set", help="Importer un certificat existant et activer HTTPS")
+    t_set.add_argument("--cert", required=True, help="Chemin du fichier certificat (PEM)")
+    t_set.add_argument("--key", required=True, help="Chemin du fichier clé privée (PEM)")
+    t_set.add_argument("--chain", help="Chemin du fichier chaîne/autorité (PEM, optionnel)")
+    t_set.set_defaults(func=cmd_tls_set)
+
+    t_disable = tls_sub.add_parser("disable", help="Désactiver HTTPS, revenir en HTTP")
+    t_disable.set_defaults(func=cmd_tls_disable)
 
     return parser
 

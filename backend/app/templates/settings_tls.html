@@ -73,18 +73,39 @@
 
 <div class="card">
   <h3>Importer un certificat existant</h3>
-  <form method="post" action="/settings/tls/upload" class="form-grid">
+  <div class="help" style="padding: 0 1.25rem;">
+    Fichiers au format PEM (texte, <code>-----BEGIN ...-----</code>) — le format habituel
+    livré par une autorité de certification ou généré par <code>certbot</code>/`openssl`.
+  </div>
+  <form method="post" action="/settings/tls/upload" enctype="multipart/form-data" class="form-grid">
     <div class="form-field">
-      <label>Certificat (PEM)</label>
-      <textarea name="cert_pem" rows="8" class="mono" required placeholder="-----BEGIN CERTIFICATE-----"></textarea>
+      <label>Certificat (.pem / .crt)</label>
+      <input type="file" name="cert_file" accept=".pem,.crt,.cer" required>
     </div>
     <div class="form-field">
-      <label>Clé privée (PEM)</label>
-      <textarea name="key_pem" rows="8" class="mono" required placeholder="-----BEGIN PRIVATE KEY-----"></textarea>
+      <label>Clé privée (.pem / .key)</label>
+      <input type="file" name="key_file" accept=".pem,.key" required>
+    </div>
+    <div class="form-field">
+      <label>Chaîne / autorité de certification (optionnel)</label>
+      <input type="file" name="chain_file" accept=".pem,.crt,.cer">
+      <div class="help">
+        Nécessaire si ton certificat n'est pas auto-signé : le ou les certificats
+        intermédiaires (et/ou racine) de l'autorité qui l'a signé — souvent livré à côté
+        par l'autorité (ex : "fullchain"/"ca-bundle"). Sans ça, certains navigateurs ou
+        clients n'arriveront pas à vérifier la chaîne de confiance jusqu'à l'autorité.
+      </div>
     </div>
     <div class="form-actions">
       <button type="submit" class="btn">Importer et activer</button>
     </div>
   </form>
+</div>
+
+<div class="help" style="margin-top: 1rem;">
+  En CLI (depuis le conteneur <code>backend</code>) :
+  <code class="mono">python -m app.cli tls set --cert cert.pem --key key.pem [--chain chain.pem]</code>,
+  <code class="mono">python -m app.cli tls generate --cn mondomaine.local</code>,
+  <code class="mono">python -m app.cli tls status</code>.
 </div>
 {% endblock %}
