@@ -59,38 +59,53 @@ def process_vm_request(request_id: int) -> None:
             db.commit()
             return
 
-        ipam = get_ipam_provider(ipam_conn.type, ipam_conn.config)
-        reservation = ipam.reserve_ip(vlan=vm_request.vlan or "default", hostname=vm_request.hostname)
-        logger.info(
-            "IP réservée pour la requête %s (%s) via %s (%s): %s",
-            vm_request.id,
-            vm_request.hostname,
-            ipam_conn.name,
-            ipam_conn.type,
-            reservation,
-        )
-
-        # DNS : soit l'IPAM est tout-en-un et implémente déjà DnsProvider (ex: EfficientIP),
-        # soit un connecteur DNS séparé est configuré (ex: phpIPAM + Windows DNS), soit rien.
-        dns_conn = get_active_connection("dns")
-        if isinstance(ipam, DnsProvider):
-            dns = ipam
-        elif dns_conn is not None:
-            dns = get_dns_provider(dns_conn.type, dns_conn.config)
-        else:
-            dns = None
-
-        if dns is not None:
-            dns.create_record(hostname=vm_request.hostname, ip=reservation.ip)
+        try:
+            ipam = get_ipam_provider(ipam_conn.type, ipam_conn.config)
+            reservation = ipam.reserve_ip(vlan=vm_request.vlan or "default", hostname=vm_request.hostname)
             logger.info(
-                "Enregistrement DNS créé pour la requête %s (%s -> %s)",
-                vm_request.id, vm_request.hostname, reservation.ip,
-            )
-        else:
-            logger.info(
-                "Pas de connecteur DNS configuré — enregistrement DNS ignoré pour la requête %s",
+                "IP réservée pour la requête %s (%s) via %s (%s): %s",
                 vm_request.id,
+                vm_request.hostname,
+                ipam_conn.name,
+                ipam_conn.type,
+                reservation,
             )
+
+            # DNS : soit l'IPAM est tout-en-un et implémente déjà DnsProvider (ex: EfficientIP),
+            # soit un connecteur DNS séparé est configuré (ex: phpIPAM + Windows DNS), soit rien.
+            dns_conn = get_active_connection("dns")
+            if isinstance(ipam, DnsProvider):
+                dns = ipam
+            elif dns_conn is not None:
+                dns = get_dns_provider(dns_conn.type, dns_conn.config)
+            else:
+                dns = None
+
+            if dns is not None:
+                dns.create_record(hostname=vm_request.hostname, ip=reservation.ip)
+                logger.info(
+                    "Enregistrement DNS créé pour la requête %s (%s -> %s)",
+                    vm_request.id, vm_request.hostname, reservation.ip,
+                )
+            else:
+                logger.info(
+                    "Pas de connecteur DNS configuré — enregistrement DNS ignoré pour la requête %s",
+                    vm_request.id,
+                )
+        except Exception as exc:  # noqa: BLE001 — n'importe quelle panne IPAM/DNS (hôte
+            # injoignable, timeout, erreur API...) doit faire échouer proprement la
+            # requête plutôt que planter le job RQ et laisser le statut bloqué
+            # silencieusement sur "pending" pour toujours (trouvé en conditions réelles :
+            # phpIPAM injoignable depuis un réseau distant sans route vers le LAN
+            # homelab — timeout de connexion, jamais rattrapé avant ce correctif).
+            logger.error(
+                "Réservation IP/DNS échouée pour la requête %s (%s) : %s",
+                vm_request.id, vm_request.hostname, exc,
+            )
+            vm_request.status = RequestStatus.failed
+            vm_request.error_message = f"Réservation IP/DNS échouée : {exc}"
+            db.commit()
+            return
 
         vm_request.ip_address = reservation.ip
         vm_request.netmask = reservation.netmask
