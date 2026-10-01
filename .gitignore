@@ -34,3 +34,6 @@ __pycache__/
 *.tfstate
 *.tfstate.*
 terraform.tfvars.json
+
+# Contexte Claude Code — local uniquement, pas destiné à être publié
+CLAUDE.md
