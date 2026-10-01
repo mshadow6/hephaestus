@@ -33,7 +33,19 @@ def _run(cmd: list[str], cwd: Path | None = None, timeout: int = 300, env: dict 
     full_env["ANSIBLE_HOST_KEY_CHECKING"] = "False"
     if env:
         full_env.update(env)
-    return subprocess.run(cmd, cwd=cwd, env=full_env, capture_output=True, text=True, timeout=timeout)
+    try:
+        return subprocess.run(cmd, cwd=cwd, env=full_env, capture_output=True, text=True, timeout=timeout)
+    except subprocess.TimeoutExpired as exc:
+        # Sans ce wrapping, un dépassement de timeout (hôte injoignable à distance, par
+        # ex.) remontait en subprocess.TimeoutExpired brut, jamais rattrapé par les
+        # `except AnsibleError` des appelants — le job plantait sans jamais mettre à jour
+        # le statut ni écrire la moindre sortie (trouvé en conditions réelles : git pull
+        # du repo Gitea, injoignable depuis un réseau distant).
+        raise AnsibleError(
+            f"Commande expirée après {timeout}s : {' '.join(cmd)} — hôte injoignable ou trop lent à répondre.",
+            (exc.stdout or b"").decode(errors="replace") if isinstance(exc.stdout, bytes) else (exc.stdout or ""),
+            (exc.stderr or b"").decode(errors="replace") if isinstance(exc.stderr, bytes) else (exc.stderr or ""),
+        ) from exc
 
 
 def _run_streaming(cmd: list[str], cwd: Path, env: dict, on_output, timeout: int = 1800) -> None:
@@ -52,16 +64,28 @@ def _run_streaming(cmd: list[str], cwd: Path, env: dict, on_output, timeout: int
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
     )
     collected: list[str] = []
+    timed_out = False
     try:
         for line in process.stdout:  # type: ignore[union-attr]
             collected.append(line)
             on_output(line)
         process.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        timed_out = True
     finally:
         if process.poll() is None:
             process.kill()
 
     full_output = "".join(collected)
+    if timed_out:
+        # Même défaut que _run() : sans ce rattrapage, un dépassement de timeout plantait
+        # le job RQ en silence (process.wait(timeout=...) peut lever TimeoutExpired, pas
+        # seulement subprocess.run) — la sortie déjà collectée au fil de l'eau avant le
+        # timeout est conservée, pas perdue.
+        raise AnsibleError(
+            f"Commande expirée après {timeout}s (hôte injoignable ou trop lent) : {' '.join(cmd)}",
+            full_output, "",
+        )
     if process.returncode != 0:
         raise AnsibleError(f"{' '.join(cmd[-1:])} a échoué (code {process.returncode})", full_output, "")
 
