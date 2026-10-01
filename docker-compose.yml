@@ -44,6 +44,7 @@ services:
       - ./.secrets:/app/.secrets:ro
       - ansible_playbooks:/app/ansible-playbooks:ro
       - tls_certs:/data/tls
+      - audit_logs:/app/logs
     ports:
       - "8000:8000"
     depends_on:
@@ -97,3 +98,4 @@ volumes:
   terraform_plugin_cache:
   ansible_playbooks:
   tls_certs:
+  audit_logs:

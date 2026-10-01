@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
+from app.audit_log import client_ip, log_account_disabled, log_account_locked, log_login_failure, log_login_success, log_logout
 from app.auth import any_user_exists, get_user_by_username, hash_password, verify_password_constant_time
 from app.database import get_db
 from app.ldap_auth import authenticate as ldap_authenticate
@@ -78,8 +79,11 @@ def login_submit(
     # — le risque de bruteforce est côté app, pas côté annuaire). Vérifié avant même de
     # tenter l'authentification, pour qu'un compte verrouillé ne consomme pas une tentative
     # LDAP en plus (pas de round-trip réseau inutile vers l'annuaire).
+    ip = client_ip(request)
+
     if user is not None:
         if user.disabled:
+            log_login_failure(username, "compte désactivé", ip)
             return templates.TemplateResponse(
                 request, "login.html",
                 {"error": "Compte désactivé après trop d'échecs — contacte un administrateur.", "next": next},
@@ -87,6 +91,7 @@ def login_submit(
             )
         if user.locked_until is not None and user.locked_until > now:
             wait_s = int((user.locked_until - now).total_seconds()) + 1
+            log_login_failure(username, "verrouillé temporairement", ip)
             return templates.TemplateResponse(
                 request, "login.html",
                 {"error": f"Trop de tentatives — réessaie dans {wait_s}s.", "next": next},
@@ -117,6 +122,7 @@ def login_submit(
         user.failed_login_attempts = 0
         user.locked_until = None
         db.commit()
+        log_login_success(user.username, user.source, ip)
         request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
         return RedirectResponse(url=next or "/", status_code=303)
 
@@ -125,10 +131,13 @@ def login_submit(
         if user.failed_login_attempts >= DISABLE_THRESHOLD and not user.is_protected:
             user.disabled = True
             user.locked_until = None
+            log_account_disabled(user.username)
         elif user.failed_login_attempts % LOCKOUT_THRESHOLD == 0:
             user.locked_until = now + LOCKOUT_DURATION
+            log_account_locked(user.username)
         db.commit()
 
+    log_login_failure(username, "identifiants incorrects", ip)
     return templates.TemplateResponse(
         request, "login.html",
         {"error": "Identifiant ou mot de passe incorrect.", "next": next},
@@ -138,5 +147,8 @@ def login_submit(
 
 @router.post("/logout")
 def logout(request: Request):
+    user = request.session.get("user") or {}
+    if user.get("username"):
+        log_logout(user["username"], client_ip(request))
     request.session.clear()
     return RedirectResponse(url="/login", status_code=303)

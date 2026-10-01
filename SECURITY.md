@@ -38,6 +38,13 @@ directement sur Internet sans réflexion supplémentaire (voir "Manques réels" 
   compte de quelqu'un d'autre en multipliant les échecs sur son identifiant (effet de
   bord inhérent à tout verrouillage par compte, pas spécifique à cette implémentation) ;
   pas de limitation par IP source en complément pour l'instant.
+- **Journal d'audit (2026-10-01)** : fichier dédié `/app/logs/audit.log` (JSON-lines,
+  rotation automatique à 10 Mo x5), persistant (volume Docker, survit aux redémarrages) —
+  connexions réussies/échouées, verrouillages temporaires, désactivations/réactivations
+  de compte, déconnexions, et chaque requête HTTP (méthode, chemin, statut, utilisateur,
+  IP réelle via `X-Forwarded-For` derrière Caddy, durée). Consultable via
+  `docker compose exec backend tail -f /app/logs/audit.log`. Pas encore de vue dédiée
+  côté dashboard — fichier brut pour l'instant, à parser/grep.
 
 ## Secrets
 
@@ -97,8 +104,6 @@ directement sur Internet sans réflexion supplémentaire (voir "Manques réels" 
 - Pas de verrouillage/validation TLS par défaut sur les connexions Proxmox
   (`insecure_tls: true` par défaut) — assumé pour des certificats auto-signés de labo,
   à resserrer si ton instance a un vrai certificat.
-- Pas de journal d'audit dédié aux tentatives de connexion échouées (juste les logs
-  applicatifs bruts, pas une vue dédiée côté dashboard).
 
 ## En résumé
 

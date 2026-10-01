@@ -5,6 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.audit_log import log_account_reactivated
 from app.auth import hash_password, require_admin
 from app.counts import pending_approval_count
 from app.database import get_db
@@ -74,13 +75,14 @@ def users_create(
 
 
 @router.post("/users/{user_id}/unlock")
-def users_unlock(user_id: int, db: Session = Depends(get_db)):
+def users_unlock(user_id: int, request: Request, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
     user = db.get(User, user_id)
     if user is not None:
         user.disabled = False
         user.locked_until = None
         user.failed_login_attempts = 0
         db.commit()
+        log_account_reactivated(user.username, admin.get("username"))
     return RedirectResponse(url="/settings/users", status_code=303)
 
 
