@@ -27,9 +27,11 @@ STATUS_LABELS = {
     "post_install": "Post-install",
     "done": "Terminée",
     "failed": "Échec",
+    "post_install_failed": "VM créée, post-install en échec",
     "queued": "En file",
     "running": "En cours",
     "success": "Réussi",
+    "skipped": "Ignoré",
 }
 
 

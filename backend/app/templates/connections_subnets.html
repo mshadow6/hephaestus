@@ -1,16 +1,16 @@
 {% extends "base.html" %}
-{% block title %}Sous-réseaux — {{ conn.name }} — Hephaestus{% endblock %}
+{% block title %}Sous-réseaux - {{ conn.name }} - Hephaestus{% endblock %}
 {% block content %}
 <a class="back-link" href="/connections">&larr; Retour aux connexions</a>
 
-<div class="page-header"><h2>Sous-réseaux par VLAN — {{ conn.name }}</h2></div>
+<div class="page-header"><h2>Sous-réseaux par VLAN - {{ conn.name }}</h2></div>
 
 <div class="help" style="margin: 0 0 1rem;">
-  Plusieurs sous-réseaux possibles sur une même connexion IPAM — à la demande, le VLAN
+  Plusieurs sous-réseaux possibles sur une même connexion IPAM - à la demande, le VLAN
   indiqué détermine quel sous-réseau utiliser (passerelle, DNS, plage d'IP allouable).
   Utile dès qu'il y a plus d'un VLAN à gérer (sinon, le sous-réseau unique du formulaire
   de connexion suffit, pas besoin de cette page). Le VLAN est normalisé automatiquement à
-  son numéro seul (ex: "VLAN 100" saisi à la demande devient "100") — entre juste le
+  son numéro seul (ex: "VLAN 100" saisi à la demande devient "100") - entre juste le
   numéro ici, quelle que soit la façon dont il a été tapé à la demande.
 </div>
 
@@ -33,7 +33,7 @@
       <tr>
         <td class="mono">{{ s.vlan }}</td>
         <td class="mono">{{ s.gateway }}</td>
-        <td class="mono">{{ s.dns_servers or "—" }}</td>
+        <td class="mono">{{ s.dns_servers or "-" }}</td>
         <td class="mono">{{ s.allocation_range_start }} → {{ s.allocation_range_end }}</td>
         <td>
           <form method="post" action="/connections/{{ conn.name }}/subnets/{{ s.vlan }}/delete"
@@ -47,7 +47,7 @@
   </table>
   {% else %}
   <div class="empty-state">
-    Aucun sous-réseau par VLAN configuré — le champ "Passerelle" du formulaire de
+    Aucun sous-réseau par VLAN configuré - le champ "Passerelle" du formulaire de
     connexion sert de sous-réseau unique en attendant (quel que soit le VLAN demandé).
   </div>
   {% endif %}

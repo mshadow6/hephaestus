@@ -29,11 +29,12 @@
   --status-pending: #9ca3af;
   --status-ip_reserved: #3b82f6;
   --status-provisioning: #f59e0b;
-  --status-vm_created: #16a34a;
+  --status-vm_created: #3b82f6;
   --status-vm_failed: #dc2626;
   --status-post_install: #0891b2;
   --status-done: #15803d;
   --status-failed: #dc2626;
+  --status-post_install_failed: #f59e0b;
   --status-queued: #9ca3af;
   --status-running: #f59e0b;
   --status-success: #15803d;
@@ -266,6 +267,7 @@ a:hover { color: var(--accent-hover); text-decoration: underline; }
 .badge.status-post_install     { background: var(--status-post_install); }
 .badge.status-done             { background: var(--status-done); }
 .badge.status-failed           { background: var(--status-failed); }
+.badge.status-post_install_failed { background: var(--status-post_install_failed); }
 .badge.status-queued           { background: var(--status-queued); }
 .badge.status-running          { background: var(--status-running); }
 .badge.status-success          { background: var(--status-success); }
@@ -290,7 +292,17 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-
 
 .detail-grid .field .value { font-size: 0.95rem; }
 
-.back-link { display: inline-block; margin-bottom: 1rem; font-size: 0.85rem; }
+.back-link {
+  display: inline-block;
+  margin-bottom: 1rem;
+  font-size: 0.95rem;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  transition: background 0.15s, border-color 0.15s;
+}
+.back-link:hover { background: var(--surface-hover); border-color: var(--accent); }
 
 .error-box {
   margin: 1.25rem;
@@ -498,7 +510,7 @@ html[data-help="on"] .help { display: block; }
   border-radius: 50%;
   margin-right: 0.4rem;
 }
-.dot.on { background: var(--status-vm_created); }
+.dot.on { background: var(--status-done); }
 .dot.off { background: var(--text-muted); }
 
 .test-result { margin: 0.75rem 1.25rem; padding: 0.6rem 0.8rem; border-radius: var(--radius); font-size: 0.85rem; }

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Inventaire — Hephaestus{% endblock %}
+{% block title %}Inventaire - Hephaestus{% endblock %}
 {% block content %}
 <div class="page-header"><h2>Playbooks</h2></div>
 <div class="subnav">
@@ -65,7 +65,7 @@
         {% for h in hosts %}
         <tr>
           <td class="mono">{{ h.hostname }}</td>
-          <td class="mono">{{ h.ansible_host or "—" }}</td>
+          <td class="mono">{{ h.ansible_host or "-" }}</td>
           <td>
             <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/hosts/{{ h.hostname }}/delete"
                   onsubmit="return confirm('Retirer « {{ h.hostname }} » du groupe « {{ group_name }} » ?');">
@@ -97,7 +97,7 @@
   </div>
   {% endfor %}
 {% else %}
-<div class="empty-state">Aucun groupe pour l'instant — crée-en un ci-dessus, ou régénère depuis Proxmox.</div>
+<div class="empty-state">Aucun groupe pour l'instant - crée-en un ci-dessus, ou régénère depuis Proxmox.</div>
 {% endif %}
 
 <details style="margin-top: 1rem;">

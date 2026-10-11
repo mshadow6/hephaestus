@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}{{ "Historique — " + playbook_def.label if playbook_def else "Exécutions de playbooks" }} — Hephaestus{% endblock %}
+{% block title %}{{ "Historique - " + playbook_def.label if playbook_def else "Exécutions de playbooks" }} - Hephaestus{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h2>Playbooks{{ " — " + playbook_def.label if playbook_def else "" }}</h2>
+  <h2>Playbooks{{ " - " + playbook_def.label if playbook_def else "" }}</h2>
   <a class="btn" href="/playbooks/deploy">+ Déployer un playbook</a>
 </div>
 <div class="subnav">
@@ -13,7 +13,7 @@
 </div>
 {% if playbook_filter %}
 <div class="help" style="margin-bottom:1rem;">
-  Filtré sur <strong>{{ playbook_def.label if playbook_def else playbook_filter }}</strong> —
+  Filtré sur <strong>{{ playbook_def.label if playbook_def else playbook_filter }}</strong> -
   <a href="/playbooks/runs">voir tout l'historique</a>.
 </div>
 {% endif %}
@@ -44,7 +44,7 @@
           {% if run.verbose %}<span class="type-badge">-vvvv</span>{% endif %}
         </td>
         <td><span class="badge status-{{ run.status.value }}">{{ run.status.value | status_label }}</span></td>
-        <td>{{ run.launched_by or "—" }}</td>
+        <td>{{ run.launched_by or "-" }}</td>
         <td>{{ run.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
       </tr>
       {% endfor %}

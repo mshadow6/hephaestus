@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Approuver — {{ r.hostname }} — Hephaestus{% endblock %}
+{% block title %}Approuver - {{ r.hostname }} - Hephaestus{% endblock %}
 {% block content %}
 <a class="back-link" href="/vm/{{ r.id }}">&larr; Retour à la demande</a>
 {% if r.glpi_ticket_id and glpi_base_url %}
@@ -11,8 +11,8 @@
 <div class="card">
   <h3>
     Validation de création VM
-    {% if r.glpi_ticket_id %}— Ticket GLPI #{{ r.glpi_ticket_id }}{% endif %}
-    — « {{ r.hostname }} »
+    {% if r.glpi_ticket_id %}- Ticket GLPI #{{ r.glpi_ticket_id }}{% endif %}
+    - « {{ r.hostname }} »
   </h3>
   <div class="help" style="padding: 0 1.25rem;">
     Choisis les playbooks post-install optionnels à exécuter en plus du durcissement SSH
@@ -48,7 +48,7 @@
         {% endfor %}
         <div class="help">
           Décocher un obligatoire est possible, mais demande de confirmer ton nom
-          d'utilisateur ci-dessous (doit correspondre exactement à ton compte connecté) —
+          d'utilisateur ci-dessous (doit correspondre exactement à ton compte connecté) -
           ça reste tracé sur le ticket GLPI.
         </div>
         <div class="form-field">

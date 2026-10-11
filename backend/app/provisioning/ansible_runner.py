@@ -182,6 +182,7 @@ _SSH_COMMON_ARGS = "-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
 def run_post_install(
     vm_request: VMRequest, bootstrap_root_password: str, gitea_config: dict,
     selected_playbooks: list | None = None,
+    on_step=None,
 ) -> None:
     """Déploie le compte admin + clés SSH (deploy-ssh-keys.yml) puis ferme root en SSH
     (harden-root.yml) sur la VM tout juste créée. Lève AnsibleError si une étape échoue —
@@ -195,7 +196,15 @@ def run_post_install(
     l'ordre. Un playbook dont le fichier n'existe pas encore dans le repo est ignoré
     (log warning), pas une erreur — le catalogue peut lister des playbooks pas encore
     écrits.
+
+    `on_step(key, label, status, error=None)` : callback optionnel appelé avant/après
+    chaque étape (durcissement SSH + chaque playbook) — permet à l'appelant de
+    persister un statut par étape affiché dans l'UI (voir app.worker.tasks._record_step).
+    Sans ça, un échec sur un playbook tardif (ex: update-os.yml) donnait l'impression
+    que "la VM n'était pas déployée" alors qu'elle l'était bel et bien.
     """
+    if on_step is None:
+        on_step = lambda *a, **k: None  # noqa: E731
     repo_dir = sync_playbooks_repo(gitea_config)
     ip = vm_request.ip_address
     if not ip:
@@ -228,6 +237,7 @@ def run_post_install(
             "admin_password_hash": admin_hash,
             "approved_by": vm_request.approved_by,
         }))
+        on_step("ssh_keys", "Déploiement clé SSH (compte admin)", "running")
         r1 = _run(
             [
                 "ansible-playbook", "-i", str(inv_new), "vm-hardening/deploy-ssh-keys.yml",
@@ -236,7 +246,9 @@ def run_post_install(
             cwd=repo_dir, timeout=300, env=collections_env,
         )
         if r1.returncode != 0:
+            on_step("ssh_keys", "Déploiement clé SSH (compte admin)", "failed", (r1.stdout or r1.stderr)[-2000:])
             raise AnsibleError("deploy-ssh-keys.yml a échoué", r1.stdout, r1.stderr)
+        on_step("ssh_keys", "Déploiement clé SSH (compte admin)", "success")
         logger.info("deploy-ssh-keys.yml OK pour %s (%s)", vm_request.hostname, ip)
 
         # Étape 2 : compte admin par clé -> ferme root en SSH pour de bon.
@@ -245,14 +257,21 @@ def run_post_install(
             "ansible_user": settings.ansible_admin_username,
             "ansible_ssh_private_key_file": settings.ansible_ssh_private_key_path,
             "ansible_ssh_common_args": f"'{_SSH_COMMON_ARGS}'",
+            # Var de connexion (pas une extra-var ponctuelle) : doit s'appliquer à TOUTE
+            # tâche `become` lancée sur cet inventaire, pas juste à harden-root.yml —
+            # sans ça, les playbooks du catalogue (étape 3, ex: update-os.yml) qui
+            # tournent avec le même inventaire n'avaient pas de mot de passe sudo et
+            # échouaient avec "sudo: il est nécessaire de saisir un mot de passe" (trouvé
+            # en conditions réelles).
+            "ansible_become_pass": settings.ansible_admin_password,
         })
         extra_vars_2 = tmp_path / "extra-vars-2.json"
         extra_vars_2.write_text(json.dumps({
             "admin_username": settings.ansible_admin_username,
             "admin_ssh_public_keys": [pubkey],
-            "ansible_become_pass": settings.ansible_admin_password,
             "approved_by": vm_request.approved_by,
         }))
+        on_step("harden_root", "Durcissement SSH (fermeture root)", "running")
         r2 = _run(
             [
                 "ansible-playbook", "-i", str(inv_vms), "vm-hardening/harden-root.yml",
@@ -261,7 +280,9 @@ def run_post_install(
             cwd=repo_dir, timeout=300, env=collections_env,
         )
         if r2.returncode != 0:
+            on_step("harden_root", "Durcissement SSH (fermeture root)", "failed", (r2.stdout or r2.stderr)[-2000:])
             raise AnsibleError("harden-root.yml a échoué", r2.stdout, r2.stderr)
+        on_step("harden_root", "Durcissement SSH (fermeture root)", "success")
         logger.info("harden-root.yml OK pour %s (%s) — root fermé en SSH", vm_request.hostname, ip)
 
         # Étape 3 : playbooks du catalogue (obligatoires + optionnels cochés), sur le
@@ -274,13 +295,17 @@ def run_post_install(
                     "Playbook '%s' (%s) absent du repo — ignoré pour %s (catalogue en avance sur le contenu réel)",
                     pb.label, pb.repo_path, vm_request.hostname,
                 )
+                on_step(pb.key, pb.label, "skipped", "Playbook absent du repo")
                 continue
+            on_step(pb.key, pb.label, "running")
             r3 = _run(
                 ["ansible-playbook", "-i", str(inv_vms), "-e", f"@{extra_vars_3}", pb.repo_path],
                 cwd=repo_dir, timeout=600, env=collections_env,
             )
             if r3.returncode != 0:
+                on_step(pb.key, pb.label, "failed", (r3.stdout or r3.stderr)[-2000:])
                 raise AnsibleError(f"{pb.label} ({pb.repo_path}) a échoué", r3.stdout, r3.stderr)
+            on_step(pb.key, pb.label, "success")
             logger.info("%s OK pour %s (%s)", pb.label, vm_request.hostname, ip)
 
 

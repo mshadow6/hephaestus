@@ -16,7 +16,7 @@
              placeholder="{{ '•••••••• (laisser vide pour ne pas changer)' if current else '' }}"
              autocomplete="new-password"
              {% if f.required and not current %}required{% endif %}>
-      {% if current %}<div class="help">Une valeur est déjà enregistrée — laisse vide pour la garder.</div>{% endif %}
+      {% if current %}<div class="help">Une valeur est déjà enregistrée - laisse vide pour la garder.</div>{% endif %}
     {% else %}
       <label for="field-{{ f.name }}">{{ f.label }}{% if f.required %} *{% endif %}</label>
       <input type="{{ f.input_type }}" id="field-{{ f.name }}" name="{{ f.name }}"

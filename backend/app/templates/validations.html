@@ -1,8 +1,8 @@
 {% extends "base.html" %}
-{% block title %}Création de VM — Hephaestus{% endblock %}
+{% block title %}Création de VM - Hephaestus{% endblock %}
 {% block content %}
 <div class="page-header">
-  <h2>Création de VM — En attente</h2>
+  <h2>Création de VM - En attente</h2>
 </div>
 
 <div class="card">
@@ -25,19 +25,19 @@
       <tr>
         <td>{{ r.id }}</td>
         <td><a href="/vm/{{ r.id }}">{{ r.hostname }}</a></td>
-        <td class="mono">{{ r.os_template or "—" }}</td>
+        <td class="mono">{{ r.os_template or "-" }}</td>
         <td>{{ r.cpu or "?" }} vCPU / {{ r.ram_gb or "?" }} Go / {{ r.disk_gb or "?" }} Go</td>
-        <td class="mono">{{ r.vlan or "—" }}</td>
+        <td class="mono">{{ r.vlan or "-" }}</td>
         <td>
           {% if r.glpi_ticket_id and glpi_base_url %}
           <a href="{{ glpi_base_url }}/front/change.form.php?id={{ r.glpi_ticket_id }}" target="_blank" rel="noopener">#{{ r.glpi_ticket_id }}</a>
           {% else %}
-          {{ r.glpi_ticket_id or "—" }}
+          {{ r.glpi_ticket_id or "-" }}
           {% endif %}
         </td>
         <td>{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
         <td>
-          {% if request.session.get('user', {}).get('role') == 'admin' %}
+          {% if 'approve_vm' in (request.session.get('user', {}).get('permissions') or []) %}
           <a href="/vm/{{ r.id }}/approve" class="btn btn-sm">Approuver</a>
           <form method="post" action="/vm/{{ r.id }}/reject"
                 onsubmit="return promptRejectReason(this);" style="display:inline">
@@ -52,7 +52,7 @@
     </tbody>
   </table>
   {% else %}
-  <div class="empty-state">Aucune demande en attente — tout est traité.</div>
+  <div class="empty-state">Aucune demande en attente - tout est traité.</div>
   {% endif %}
 </div>
 
@@ -76,12 +76,12 @@
         <td>{{ r.id }}</td>
         <td><a href="/vm/{{ r.id }}">{{ r.hostname }}</a></td>
         <td><span class="badge status-{{ r.status.value }}">{{ r.status.value | status_label }}</span></td>
-        <td>{{ r.approved_by or "—" }}</td>
+        <td>{{ r.approved_by or "-" }}</td>
         <td>
           {% if r.glpi_ticket_id and glpi_base_url %}
           <a href="{{ glpi_base_url }}/front/change.form.php?id={{ r.glpi_ticket_id }}" target="_blank" rel="noopener">#{{ r.glpi_ticket_id }}</a>
           {% else %}
-          {{ r.glpi_ticket_id or "—" }}
+          {{ r.glpi_ticket_id or "-" }}
           {% endif %}
         </td>
         <td class="mono">{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td>

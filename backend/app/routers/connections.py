@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
-from app.auth import require_admin
+from app.auth import require_permission
 from app.connections.store import (
     Connection,
     InvalidConnectionName,
@@ -17,16 +17,30 @@ from app.counts import pending_approval_count
 from app.database import get_db
 from app.templating import templates
 
-router = APIRouter(prefix="/connections", include_in_schema=False, dependencies=[Depends(require_admin)])
+router = APIRouter(
+    prefix="/connections", include_in_schema=False,
+    dependencies=[Depends(require_permission("manage_connectors"))],
+)
 
 
 
 @router.get("")
 def list_view(request: Request, db: Session = Depends(get_db)):
     connections = list_connections()
+    # Regroupées par catégorie (Hyperviseur, IPAM, DNS...) plutôt qu'une seule liste
+    # plate mélangeant toutes les technos - retour user : "ça fait un tas" dès qu'on a
+    # plus de 4-5 connexions de types différents.
+    by_category: dict[str, list] = {}
+    for c in connections:
+        category = PROVIDER_TYPES[c.type].category if c.type in PROVIDER_TYPES else "?"
+        by_category.setdefault(category, []).append(c)
+    grouped = [
+        (cat, CATEGORY_LABELS.get(cat, cat), by_category[cat])
+        for cat in CATEGORY_LABELS if cat in by_category
+    ]
     return templates.TemplateResponse(
         request, "connections_list.html",
-        {"connections": connections, "provider_types": PROVIDER_TYPES,
+        {"grouped": grouped, "provider_types": PROVIDER_TYPES,
          "category_labels": CATEGORY_LABELS, "pending_count": pending_approval_count(db)},
     )
 

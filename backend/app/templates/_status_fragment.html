@@ -1,4 +1,8 @@
-{% set terminal_statuses = ["vm_created", "vm_failed", "done", "failed", "rejected"] %}
+{# vm_created n'est PAS terminal : post_install démarre automatiquement juste après,
+   sans action utilisateur - le lister ici arrêtait le rafraîchissement auto (hx-trigger)
+   avant que la page ait une chance de montrer la suite du pipeline (trouvé en conditions
+   réelles : la page restait figée sur "VM créée" tant qu'on ne rechargeait pas à la main). #}
+{% set terminal_statuses = ["vm_failed", "done", "failed", "post_install_failed", "rejected"] %}
 <div id="status-fragment"
      {% if r.status.value not in terminal_statuses %}
      hx-get="/vm/{{ r.id }}/status-fragment"
@@ -15,8 +19,8 @@
       <div class="value mono">{{ r.ip_address or "en attente…" }}</div>
     </div>
     <div class="field">
-      <label>VM ID Proxmox</label>
-      <div class="value mono">{{ r.proxmox_vmid or "en attente…" }}</div>
+      <label>ID VM{% if r.hypervisor_connection %} ({{ r.hypervisor_connection }}){% endif %}</label>
+      <div class="value mono">{{ r.hypervisor_vm_id or r.proxmox_vmid or "en attente…" }}</div>
     </div>
     <div class="field">
       <label>Mise à jour</label>
@@ -26,13 +30,33 @@
   {% if r.error_message %}
   <div class="error-box">{{ r.error_message }}</div>
   {% endif %}
+  {% if r.pipeline_steps %}
+  <div class="section-title" style="margin-top:1rem;">Étapes</div>
+  <div class="detail-grid">
+    {% for step in r.pipeline_steps %}
+    <div class="field">
+      <label>{{ step.label }}</label>
+      <div class="value">
+        <span class="badge status-{{ 'pending' if step.status == 'skipped' else step.status }}">
+          {{ step.status | status_label }}
+        </span>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+  {% for step in r.pipeline_steps %}
+  {% if step.error %}
+  <div class="error-box"><strong>{{ step.label }}</strong> - {{ step.error }}</div>
+  {% endif %}
+  {% endfor %}
+  {% endif %}
   {% if r.rejection_reason %}
   <div class="field">
     <label>Motif du refus</label>
     <div class="value">{{ r.rejection_reason }}</div>
   </div>
   {% endif %}
-  {% if r.status.value == "pending_approval" and request.session.get('user', {}).get('role') == 'admin' %}
+  {% if r.status.value == "pending_approval" and 'approve_vm' in (request.session.get('user', {}).get('permissions') or []) %}
   <div class="approval-actions">
     <a href="/vm/{{ r.id }}/approve" class="btn">Approuver</a>
     <form method="post" action="/vm/{{ r.id }}/reject"

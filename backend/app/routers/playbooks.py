@@ -5,7 +5,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.auth import require_admin
+from app.auth import require_login, require_permission
 from app.counts import pending_approval_count
 from app.database import get_db
 from app.models import PlaybookRun
@@ -37,12 +37,12 @@ from app.worker.tasks import run_adhoc_playbook_job
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/playbooks", include_in_schema=False, dependencies=[Depends(require_admin)])
+router = APIRouter(prefix="/playbooks", include_in_schema=False, dependencies=[Depends(require_login)])
 
 
 
-@router.get("")
-def list_view(request: Request, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
+@router.get("", dependencies=[Depends(require_permission("manage_playbooks"))])
+def list_view(request: Request, db: Session = Depends(get_db), admin: dict = Depends(require_login)):
     playbooks = list_playbooks()
     return templates.TemplateResponse(
         request, "playbooks_list.html",
@@ -56,7 +56,7 @@ def list_view(request: Request, db: Session = Depends(get_db), admin: dict = Dep
     )
 
 
-@router.get("/new")
+@router.get("/new", dependencies=[Depends(require_permission("manage_playbooks"))])
 def new_form(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request, "playbooks_form.html",
@@ -67,13 +67,13 @@ def new_form(request: Request, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/new")
+@router.post("/new", dependencies=[Depends(require_permission("manage_playbooks"))])
 async def create(request: Request):
     form = await request.form()
     return _save_from_form(form, existing_key=None)
 
 
-@router.get("/{key}/edit")
+@router.get("/{key}/edit", dependencies=[Depends(require_permission("manage_playbooks"))])
 def edit_form(key: str, request: Request, db: Session = Depends(get_db)):
     pb = get_playbook(key)
     if pb is None:
@@ -87,7 +87,7 @@ def edit_form(key: str, request: Request, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/{key}/edit")
+@router.post("/{key}/edit", dependencies=[Depends(require_permission("manage_playbooks"))])
 async def update(key: str, request: Request):
     pb = get_playbook(key)
     if pb is None:
@@ -96,14 +96,14 @@ async def update(key: str, request: Request):
     return _save_from_form(form, existing_key=key)
 
 
-@router.post("/{key}/delete")
+@router.post("/{key}/delete", dependencies=[Depends(require_permission("manage_playbooks"))])
 def delete(key: str):
     delete_playbook(key)
     return RedirectResponse(url="/playbooks", status_code=303)
 
 
-@router.post("/{key}/toggle-enabled")
-async def toggle_enabled(key: str, request: Request, admin: dict = Depends(require_admin)):
+@router.post("/{key}/toggle-enabled", dependencies=[Depends(require_permission("manage_playbooks"))])
+async def toggle_enabled(key: str, request: Request, admin: dict = Depends(require_login)):
     pb = get_playbook(key)
     if pb is None:
         raise HTTPException(status_code=404, detail="Playbook introuvable")
@@ -121,7 +121,7 @@ async def toggle_enabled(key: str, request: Request, admin: dict = Depends(requi
     return RedirectResponse(url="/playbooks", status_code=303)
 
 
-@router.get("/deploy")
+@router.get("/deploy", dependencies=[Depends(require_permission("run_playbooks"))])
 def deploy_form(request: Request, db: Session = Depends(get_db)):
     groups = list_inventory_groups()
     playbooks = [p for p in list_playbooks() if p.enabled]
@@ -134,8 +134,8 @@ def deploy_form(request: Request, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/deploy")
-async def deploy(request: Request, db: Session = Depends(get_db), admin: dict = Depends(require_admin)):
+@router.post("/deploy", dependencies=[Depends(require_permission("run_playbooks"))])
+async def deploy(request: Request, db: Session = Depends(get_db), admin: dict = Depends(require_login)):
     form = await request.form()
     playbook_keys = form.getlist("playbook_keys")
     group = (form.get("group") or "").strip() or None
@@ -176,7 +176,7 @@ async def deploy(request: Request, db: Session = Depends(get_db), admin: dict = 
     return RedirectResponse(url="/playbooks/runs", status_code=303)
 
 
-@router.get("/inventory")
+@router.get("/inventory", dependencies=[Depends(require_permission("run_playbooks"))])
 def inventory_form(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request, "playbooks_inventory.html",
@@ -190,7 +190,7 @@ def inventory_form(request: Request, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/inventory")
+@router.post("/inventory", dependencies=[Depends(require_permission("run_playbooks"))])
 async def inventory_save(request: Request):
     form = await request.form()
     content = form.get("content", "")
@@ -201,7 +201,7 @@ async def inventory_save(request: Request):
     return RedirectResponse(url="/playbooks/inventory?saved=1", status_code=303)
 
 
-@router.post("/inventory/regenerate")
+@router.post("/inventory/regenerate", dependencies=[Depends(require_permission("run_playbooks"))])
 def inventory_regenerate():
     try:
         regenerate_from_proxmox()
@@ -213,7 +213,7 @@ def inventory_regenerate():
     return RedirectResponse(url="/playbooks/inventory?saved=1", status_code=303)
 
 
-@router.post("/inventory/groups")
+@router.post("/inventory/groups", dependencies=[Depends(require_permission("run_playbooks"))])
 async def inventory_group_add(request: Request):
     form = await request.form()
     name = (form.get("name") or "").strip()
@@ -223,13 +223,13 @@ async def inventory_group_add(request: Request):
     return RedirectResponse(url="/playbooks/inventory?saved=1", status_code=303)
 
 
-@router.post("/inventory/groups/{group}/delete")
+@router.post("/inventory/groups/{group}/delete", dependencies=[Depends(require_permission("run_playbooks"))])
 def inventory_group_delete(group: str):
     delete_group(group)
     return RedirectResponse(url="/playbooks/inventory?saved=1", status_code=303)
 
 
-@router.post("/inventory/groups/{group}/hosts")
+@router.post("/inventory/groups/{group}/hosts", dependencies=[Depends(require_permission("run_playbooks"))])
 async def inventory_host_add(group: str, request: Request):
     form = await request.form()
     hostname = (form.get("hostname") or "").strip()
@@ -240,7 +240,7 @@ async def inventory_host_add(group: str, request: Request):
     return RedirectResponse(url="/playbooks/inventory?saved=1", status_code=303)
 
 
-@router.post("/inventory/groups/{group}/hosts/{hostname}/delete")
+@router.post("/inventory/groups/{group}/hosts/{hostname}/delete", dependencies=[Depends(require_permission("run_playbooks"))])
 def inventory_host_delete(group: str, hostname: str):
     delete_host(group, hostname)
     return RedirectResponse(url="/playbooks/inventory?saved=1", status_code=303)

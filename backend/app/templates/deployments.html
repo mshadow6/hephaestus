@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Historique des déploiements — Hephaestus{% endblock %}
+{% block title %}Historique des déploiements - Hephaestus{% endblock %}
 {% block content %}
 <div class="page-header">
   <h2>Historique des déploiements</h2>
@@ -14,7 +14,7 @@
     <div class="form-field" style="min-width: 200px;">
       <label for="status">Statut</label>
       <select id="status" name="status">
-        <option value="">— Tous —</option>
+        <option value="">- Tous -</option>
         {% for s in all_statuses %}
         <option value="{{ s }}" {% if s == status_filter %}selected{% endif %}>{{ s | status_label }}</option>
         {% endfor %}
@@ -47,13 +47,13 @@
         <td>{{ r.id }}</td>
         <td><a href="/vm/{{ r.id }}">{{ r.hostname }}</a></td>
         <td><span class="badge status-{{ r.status.value }}">{{ r.status.value | status_label }}</span></td>
-        <td class="mono">{{ r.ip_address or "—" }}</td>
-        <td>{{ r.approved_by or "—" }}</td>
+        <td class="mono">{{ r.ip_address or "-" }}</td>
+        <td>{{ r.approved_by or "-" }}</td>
         <td>
           {% if r.glpi_ticket_id and glpi_base_url %}
           <a href="{{ glpi_base_url }}/front/change.form.php?id={{ r.glpi_ticket_id }}" target="_blank" rel="noopener">#{{ r.glpi_ticket_id }}</a>
           {% else %}
-          {{ r.glpi_ticket_id or "—" }}
+          {{ r.glpi_ticket_id or "-" }}
           {% endif %}
         </td>
         <td class="mono">{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td>

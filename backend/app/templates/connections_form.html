@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ "Nouvelle connexion" if is_new else conn.name }} — Hephaestus{% endblock %}
+{% block title %}{{ "Nouvelle connexion" if is_new else conn.name }} - Hephaestus{% endblock %}
 {% block content %}
 <a class="back-link" href="/connections">&larr; Retour aux connexions</a>
 
@@ -65,7 +65,7 @@
           Utiliser comme connexion active pour cette catégorie
         </label>
         <div class="help">
-          Une seule connexion active par catégorie (IPAM, DNS, hyperviseur, ...) — c'est
+          Une seule connexion active par catégorie (IPAM, DNS, hyperviseur, ...) - c'est
           celle-là que le pipeline de provisioning utilise réellement. La cocher désactive
           automatiquement l'ancienne connexion active de la même catégorie.
         </div>

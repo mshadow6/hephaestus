@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ run.playbook_label }} — Hephaestus{% endblock %}
+{% block title %}{{ run.playbook_label }} - Hephaestus{% endblock %}
 {% block content %}
 <a class="back-link" href="/playbooks/runs?playbook={{ run.playbook_key }}">&larr; Historique de ce playbook</a>
 
@@ -22,7 +22,7 @@
     </div>
     <div class="field">
       <label>Lancé par</label>
-      <div class="value">{{ run.launched_by or "—" }}</div>
+      <div class="value">{{ run.launched_by or "-" }}</div>
     </div>
     <div class="field">
       <label>Lancé le</label>

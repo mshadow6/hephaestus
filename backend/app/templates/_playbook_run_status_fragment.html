@@ -12,7 +12,7 @@
     </div>
     <div class="field">
       <label>Terminé le</label>
-      <div class="value">{{ run.finished_at.strftime("%Y-%m-%d %H:%M:%S") if run.finished_at else "—" }}</div>
+      <div class="value">{{ run.finished_at.strftime("%Y-%m-%d %H:%M:%S") if run.finished_at else "-" }}</div>
     </div>
   </div>
   {% if run.output %}

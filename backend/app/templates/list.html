@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Vue d'ensemble — Hephaestus{% endblock %}
+{% block title %}Vue d'ensemble - Hephaestus{% endblock %}
 {% block content %}
 
 <div class="section-title" style="margin-left:0">État de l'application</div>
@@ -9,7 +9,7 @@
 
 <div class="section-title" style="margin-left:0">Demandes par statut</div>
 <div class="stat-cards">
-  {% for status in ["pending_approval", "provisioning", "vm_created", "vm_failed", "rejected"] %}
+  {% for status in ["pending_approval", "provisioning", "post_install", "done", "vm_failed", "post_install_failed", "failed", "rejected"] %}
   <div class="stat-card">
     <div class="stat-value">{{ status_counts.get(status, 0) }}</div>
     <div class="stat-label"><span class="badge status-{{ status }}">{{ status | status_label }}</span></div>

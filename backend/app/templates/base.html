@@ -15,25 +15,25 @@
     })();
 
     (function () {
-      // Petites phrases d'aide (class="help") masquées par défaut — décluttering demandé
-      // par le user, "ça fait trop de texte partout" — révélées via le bouton "❓ Aide"
+      // Petites phrases d'aide (class="help") masquées par défaut - décluttering demandé
+      // par le user, "ça fait trop de texte partout" - révélées via le bouton "❓ Aide"
       // à côté du thème, mémorisé pareil (localStorage).
       var helpVisible = localStorage.getItem("helpVisible") === "on";
       document.documentElement.setAttribute("data-help", helpVisible ? "on" : "off");
     })();
 
     function promptRejectReason(form) {
-      var reason = prompt("Pourquoi refuser cette demande ? (obligatoire — envoyé sur le ticket GLPI)");
+      var reason = prompt("Pourquoi refuser cette demande ? (obligatoire - envoyé sur le ticket GLPI)");
       if (reason === null || reason.trim() === "") return false;
       form.querySelector('input[name="reason"]').value = reason.trim();
       return true;
     }
 
     function promptConfirmUsername(form, expectedUsername, actionLabel) {
-      var input = prompt((actionLabel || "Confirmer cette action") + " — tape ton nom d'utilisateur (" + expectedUsername + ") :");
+      var input = prompt((actionLabel || "Confirmer cette action") + " - tape ton nom d'utilisateur (" + expectedUsername + ") :");
       if (input === null) return false;
       if (input.trim() !== expectedUsername) {
-        alert("Nom d'utilisateur incorrect — action annulée.");
+        alert("Nom d'utilisateur incorrect - action annulée.");
         return false;
       }
       form.querySelector('input[name="confirm_username"]').value = input.trim();
@@ -88,21 +88,29 @@
         </div>
       </div>
       {% set current_user = request.session.get('user') %}
-      {% if current_user and current_user.role == 'admin' %}
+      {% set my_perms = (current_user.permissions if current_user else []) or [] %}
+      {% if current_user and ('manage_playbooks' in my_perms or 'run_playbooks' in my_perms) %}
       <div class="nav-dropdown">
         <a href="/playbooks" onclick="toggleNavDropdown(event, this)">Playbooks ▾</a>
         <div class="nav-dropdown-menu">
-          <a href="/playbooks">Catalogue</a>
+          {% if 'manage_playbooks' in my_perms %}<a href="/playbooks">Catalogue</a>{% endif %}
+          {% if 'run_playbooks' in my_perms %}
           <a href="/playbooks/deploy">Déploiement infra</a>
           <a href="/playbooks/inventory">Inventaire</a>
+          {% endif %}
           <a href="/playbooks/runs">Historique des exécutions</a>
         </div>
       </div>
       {% endif %}
       {% if current_user %}<span class="nav-username">{{ current_user.username }}</span>{% endif %}
-      {% if current_user and current_user.role == 'admin' %}
+      {% if current_user %}
+      <a href="/settings/password" class="icon-link" title="Mon mot de passe">🔑</a>
+      {% endif %}
+      {% if my_perms %}
       <a href="/settings" class="icon-link" title="Paramètres">⚙️</a>
-      <a href="/settings/help" class="icon-link" title="Aide — fonctionnement, possibilités, support">❓</a>
+      {% endif %}
+      {% if current_user %}
+      <a href="/settings/help" class="icon-link" title="Aide - fonctionnement, possibilités, support">❓</a>
       {% endif %}
       <button type="button" class="theme-toggle" title="Afficher/masquer les textes d'aide" onclick="
         var html = document.documentElement;
