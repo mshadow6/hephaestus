@@ -47,8 +47,9 @@ variable "template_vmid" {
 }
 
 variable "vlan_tag" {
-  description = "Tag VLAN de l'interface réseau"
+  description = "Tag VLAN de l'interface réseau — null pour un réseau à plat sans VLAN (port untagged)"
   type        = number
+  default     = null
 }
 
 variable "network_bridge" {
@@ -91,6 +92,12 @@ variable "vm_dns_servers" {
   description = "Serveurs DNS à configurer sur la VM"
   type        = list(string)
   default     = []
+}
+
+variable "vm_dns_domain" {
+  description = "Domaine de recherche DNS (ex: home.lab) - null si pas configuré côté IPAM"
+  type        = string
+  default     = null
 }
 
 # Mot de passe root temporaire, généré aléatoirement par le worker pour cette VM

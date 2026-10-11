@@ -36,6 +36,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
     dns {
       servers = var.vm_dns_servers
+      domain  = var.vm_dns_domain
     }
 
     # Root temporaire par mot de passe : bootstrap unique pour deploy-ssh-keys.yml,

@@ -3,7 +3,7 @@ import secrets
 from datetime import datetime
 
 from app.config import settings
-from app.connections.store import get_active_connection
+from app.connections.store import get_active_connection, get_connection, list_active_connections
 from app.database import SessionLocal
 from app.dns import get_dns_provider
 from app.errors import describe_connector_error
@@ -31,6 +31,55 @@ def _require_active_connection(category: str, label: str):
     return conn
 
 
+def _resolve_hypervisor_connection(vm_request: VMRequest):
+    """Plusieurs connexions "hypervisor" peuvent être actives à la fois (Proxmox +
+    VMware, voir app.connections.store.MULTI_ACTIVE_CATEGORIES) - on utilise celle
+    explicitement choisie dans le formulaire (`hypervisor_connection`, nom de la
+    connexion) si elle existe et correspond toujours à une connexion active, sinon on
+    retombe sur `get_active_connection` (compat demandes GLPI/anciennes sans ce choix -
+    marche tant qu'une seule connexion hyperviseur est active)."""
+    if vm_request.hypervisor_connection:
+        conn = get_connection(vm_request.hypervisor_connection)
+        if conn is not None and conn.enabled and conn.active:
+            return conn
+        raise MissingConnectionError(
+            f"La connexion hyperviseur choisie ('{vm_request.hypervisor_connection}') "
+            "n'existe plus ou n'est plus active - choisis-en une autre sur /connections."
+        )
+    conn = get_active_connection("hypervisor")
+    if conn is None:
+        raise MissingConnectionError(
+            "Aucune connexion hyperviseur active - configure-en une (ou active-en une "
+            "existante) sur /connections avant de relancer cette requête."
+        )
+    if len(list_active_connections("hypervisor")) > 1:
+        logger.warning(
+            "Requête %s sans hyperviseur choisi explicitement alors que plusieurs sont "
+            "actifs - '%s' utilisée par défaut (premier trouvé), résultat possiblement "
+            "pas celui attendu.", vm_request.id, conn.name,
+        )
+    return conn
+
+
+def _record_step(
+    db, vm_request: VMRequest, key: str, label: str, status: str, error: str | None = None
+) -> None:
+    """Ajoute ou met à jour une étape dans `vm_request.pipeline_steps` et commit
+    immédiatement — affiché dans l'UI avec un badge par étape (voir _status_fragment.html).
+    Réassigne toute la liste (pas de mutation en place) pour que SQLAlchemy détecte le
+    changement sur la colonne JSON."""
+    steps = list(vm_request.pipeline_steps or [])
+    entry = {"key": key, "label": label, "status": status, "error": error}
+    for i, s in enumerate(steps):
+        if s.get("key") == key:
+            steps[i] = entry
+            break
+    else:
+        steps.append(entry)
+    vm_request.pipeline_steps = steps
+    db.commit()
+
+
 def process_vm_request(request_id: int) -> None:
     """Point d'entrée du job RQ déclenché par le webhook.
 
@@ -51,7 +100,7 @@ def process_vm_request(request_id: int) -> None:
 
         try:
             ipam_conn = _require_active_connection("ipam", "IPAM")
-            hypervisor_conn = _require_active_connection("hypervisor", "hyperviseur")
+            hypervisor_conn = _resolve_hypervisor_connection(vm_request)
             gitea_conn = _require_active_connection("scm", "Gitea (playbooks Ansible)")
         except MissingConnectionError as exc:
             logger.error("Requête %s bloquée: %s", vm_request.id, exc)
@@ -121,8 +170,10 @@ def process_vm_request(request_id: int) -> None:
         # bootstrap Ansible (deploy-ssh-keys.yml), jamais stocké au-delà de ce job.
         bootstrap_root_password = secrets.token_urlsafe(24)
 
+        _record_step(db, vm_request, "vm_create", "Création VM", "running")
+
         try:
-            result = apply_vm(vm_request, reservation, bootstrap_root_password, hypervisor_conn.config)
+            result = apply_vm(vm_request, reservation, bootstrap_root_password, hypervisor_conn)
         except ProvisioningError as exc:
             logger.error(
                 "terraform apply échoué pour la requête %s (%s): %s\nstderr:\n%s",
@@ -130,12 +181,28 @@ def process_vm_request(request_id: int) -> None:
             )
             vm_request.status = RequestStatus.vm_failed
             vm_request.error_message = str(exc) + ("\n\n" + exc.stderr[-4000:] if exc.stderr else "")
-            db.commit()
+            _record_step(db, vm_request, "vm_create", "Création VM", "failed", vm_request.error_message)
+            return
+        except Exception as exc:  # noqa: BLE001 — un bug imprévu ici (ex: TypeError sur
+            # un champ mal géré) plantait tout le job RQ sans jamais repasser par le except
+            # ProvisioningError ni mettre à jour le statut : la demande restait bloquée sur
+            # "provisioning" pour toujours, sans message d'erreur visible dans l'UI (trouvé
+            # en conditions réelles : vlan_tag=None -> int(None) non rattrapé).
+            logger.exception(
+                "Erreur inattendue pendant terraform apply pour la requête %s (%s)",
+                vm_request.id, vm_request.hostname,
+            )
+            vm_request.status = RequestStatus.vm_failed
+            vm_request.error_message = f"Erreur inattendue pendant la création de la VM : {exc}"
+            _record_step(db, vm_request, "vm_create", "Création VM", "failed", vm_request.error_message)
             return
 
         vm_request.status = RequestStatus.vm_created
-        vm_request.proxmox_vmid = result.vm_id
+        vm_request.hypervisor_vm_id = str(result.vm_id)
+        if hypervisor_conn.type == "proxmox":
+            vm_request.proxmox_vmid = int(result.vm_id)  # compat affichage historique
         db.commit()
+        _record_step(db, vm_request, "vm_create", "Création VM", "success")
         logger.info(
             "VM Proxmox créée pour la requête %s (%s): vmid=%s",
             vm_request.id, vm_request.hostname, result.vm_id,
@@ -149,19 +216,36 @@ def process_vm_request(request_id: int) -> None:
             if pb is not None
         ]
 
+        def _on_step(key: str, label: str, status: str, error: str | None = None) -> None:
+            _record_step(db, vm_request, key, label, status, error)
+
         try:
-            run_post_install(vm_request, bootstrap_root_password, gitea_conn.config, selected_playbooks)
+            run_post_install(
+                vm_request, bootstrap_root_password, gitea_conn.config, selected_playbooks,
+                on_step=_on_step,
+            )
         except AnsibleError as exc:
             logger.error(
                 "Post-install Ansible échoué pour la requête %s (%s): %s\nstderr:\n%s",
                 vm_request.id, vm_request.hostname, exc, exc.stderr,
             )
             # La VM existe et reste joignable (via le mot de passe root éphémère si
-            # deploy-ssh-keys.yml n'a pas fini, ou via le compte admin sinon) — on ne la
-            # marque pas vm_failed, juste failed, pour distinguer "VM absente" de
-            # "VM créée mais post-install à reprendre/déboguer manuellement".
-            vm_request.status = RequestStatus.failed
-            vm_request.error_message = str(exc) + ("\n\n" + exc.stderr[-4000:] if exc.stderr else "")
+            # deploy-ssh-keys.yml n'a pas fini, ou via le compte admin sinon) — statut
+            # dédié (pas vm_failed ni failed générique) pour distinguer "VM absente" de
+            # "VM créée et utilisable, juste un playbook post-install à reprendre".
+            vm_request.status = RequestStatus.post_install_failed
+            # ansible-playbook écrit le détail réel d'une tâche en échec (fatal: [...] =>
+            # {...}) sur stdout, pas stderr (qui ne contient souvent qu'un warning Python
+            # sans rapport) — ne garder que stderr masquait la vraie raison de l'échec
+            # dans l'UI (trouvé en conditions réelles : update-os.yml, seul un warning
+            # d'interpréteur Python remontait, la tâche fatale réelle restait invisible).
+            details = "\n\n".join(
+                part for part in (
+                    ("stdout:\n" + exc.stdout[-4000:]) if exc.stdout else "",
+                    ("stderr:\n" + exc.stderr[-2000:]) if exc.stderr else "",
+                ) if part
+            )
+            vm_request.error_message = str(exc) + ("\n\n" + details if details else "")
             db.commit()
             return
 

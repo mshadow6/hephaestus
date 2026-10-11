@@ -1,8 +1,8 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import JSON, DateTime, Enum, Integer, String, Text
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import JSON, Boolean, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
 
@@ -18,6 +18,10 @@ class RequestStatus(str, enum.Enum):
     post_install = "post_install"
     done = "done"
     failed = "failed"
+    # Distinct de `failed` : la VM existe bel et bien et reste utilisable (clé SSH admin
+    # déployée), seul un playbook post-install (ex: update-os.yml) a échoué — pas la même
+    # situation que "rien n'a jamais été créé" (failed) ou "Terraform a planté" (vm_failed).
+    post_install_failed = "post_install_failed"
 
 
 class VMRequest(Base):
@@ -37,6 +41,13 @@ class VMRequest(Base):
     ram_gb: Mapped[int | None] = mapped_column(Integer, nullable=True)
     disk_gb: Mapped[int | None] = mapped_column(Integer, nullable=True)
     os_template: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    # Nom de la connexion "hypervisor" ciblée (plusieurs peuvent être actives en même
+    # temps - Proxmox et VMware par ex., voir app.connections.store.MULTI_ACTIVE_CATEGORIES)
+    # - choisi explicitement dans le formulaire, jamais déduit implicitement.
+    hypervisor_connection: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    # Identifiant de la VM côté hyperviseur, générique (UUID vSphere ou "123" Proxmox) -
+    # proxmox_vmid (Integer) reste pour compat/affichage historique côté Proxmox.
+    hypervisor_vm_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
     # Renseigné par le worker après réservation IPAM — IP statique, jamais de DHCP pour
     # un serveur (netmask = longueur de préfixe CIDR, ex: "24")
@@ -68,6 +79,14 @@ class VMRequest(Base):
     # besoin de les lister ici). Le durcissement SSH n'est pas dans cette liste : il
     # tourne toujours, indépendamment du catalogue.
     selected_playbooks: Mapped[list | None] = mapped_column(JSON, nullable=True)
+
+    # Suivi détaillé étape par étape (création VM, puis chaque playbook), affiché dans
+    # l'UI avec un badge vert/rouge par étape — sans ça un échec sur un playbook tardif
+    # (ex: update-os.yml) donnait l'impression que "la VM n'était pas déployée" alors
+    # qu'elle l'était bel et bien, seule une étape ultérieure avait échoué. Liste de
+    # `{"key", "label", "status": "queued"|"running"|"success"|"failed", "error"}`,
+    # dans l'ordre d'exécution — voir app.worker.tasks._record_step.
+    pipeline_steps: Mapped[list | None] = mapped_column(JSON, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
@@ -105,9 +124,20 @@ class PlaybookRun(Base):
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
-class UserRole(str, enum.Enum):
-    admin = "admin"
-    viewer = "viewer"
+class Group(Base):
+    """Groupe de permissions, librement créable (voir app.permissions.ALL_PERMISSIONS
+    pour le vocabulaire fixe des permissions attribuables). `Admin` et `Invité` sont les
+    deux groupes système créés par la migration initiale (ni supprimables ni
+    renommables, `is_system=True`) — garantit qu'il existe toujours un groupe avec tous
+    les droits et un groupe le plus restrictif possible, même si l'app est mal
+    configurée par ailleurs."""
+
+    __tablename__ = "groups"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(64), unique=True)
+    permissions: Mapped[list] = mapped_column(JSON, default=list)
+    is_system: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class User(Base):
@@ -119,8 +149,9 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     username: Mapped[str] = mapped_column(String(64), unique=True)
     password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    role: Mapped[UserRole] = mapped_column(Enum(UserRole, name="user_role"), default=UserRole.admin)
-    source: Mapped[str] = mapped_column(String(16), default="local")  # "local" | "ldap"
+    group_id: Mapped[int] = mapped_column(ForeignKey("groups.id"))
+    group: Mapped["Group"] = relationship(lazy="joined")
+    source: Mapped[str] = mapped_column(String(16), default="local")  # "local" | "ldap" | "keycloak"
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # Anti-bruteforce : 5 échecs -> verrouillage 1 min (auto-expire via locked_until) ;

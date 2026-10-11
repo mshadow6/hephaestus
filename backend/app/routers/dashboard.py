@@ -6,8 +6,8 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.auth import require_admin, require_login
-from app.connections.store import get_active_connection
+from app.auth import require_login, require_permission
+from app.connections.store import get_active_connection, list_active_connections
 from app.counts import pending_approval_count
 from app.database import get_db
 from app.glpi.client import GlpiError, add_change_followup
@@ -16,7 +16,7 @@ from app.models import PlaybookRun, RequestStatus, VMRequest
 from app.parsers.glpi_formcreator import normalize_vlan
 from app.playbooks.store import list_playbooks
 from app.provisioning.ansible_runner import PLAYBOOKS_DIR
-from app.provisioning.inventory import discover_proxmox_templates
+from app.provisioning.inventory import discover_templates
 from app.feature_flags import load_features
 from app.queue import vm_queue
 from app.templating import templates
@@ -123,7 +123,8 @@ def new_request_form(request: Request, db: Session = Depends(get_db)):
         {
             "pending_count": pending_approval_count(db),
             "error": request.query_params.get("error"),
-            "available_templates": discover_proxmox_templates(),
+            "hypervisor_connections": list_active_connections("hypervisor"),
+            "available_templates": discover_templates(),
             "configured_vlans": _configured_vlans(),
         },
     )
@@ -166,6 +167,7 @@ async def create_request(request: Request, db: Session = Depends(get_db)):
         ram_gb=_int_or_none("ram_gb"),
         disk_gb=_int_or_none("disk_gb"),
         os_template=(form.get("os_template") or "").strip() or None,
+        hypervisor_connection=(form.get("hypervisor_connection") or "").strip() or None,
         raw_payload={"source": "native_form", "submitted_by": user.get("username")},
         status=RequestStatus.pending_approval,
     )
@@ -262,7 +264,7 @@ def vm_status_fragment(request_id: int, request: Request, db: Session = Depends(
 @router.get("/vm/{request_id}/approve")
 def approve_options(
     request_id: int, request: Request, db: Session = Depends(get_db),
-    _admin: dict = Depends(require_admin),
+    _admin: dict = Depends(require_permission("approve_vm")),
 ):
     vm_request = db.get(VMRequest, request_id)
     if vm_request is None:
@@ -290,7 +292,7 @@ def approve_options(
 @router.post("/vm/{request_id}/approve")
 async def approve(
     request_id: int, request: Request, db: Session = Depends(get_db),
-    _admin: dict = Depends(require_admin),
+    _admin: dict = Depends(require_permission("approve_vm")),
 ):
     vm_request = db.get(VMRequest, request_id)
     if vm_request is None:
@@ -352,7 +354,7 @@ async def approve(
 @router.post("/vm/{request_id}/reject")
 async def reject(
     request_id: int, request: Request, db: Session = Depends(get_db),
-    _admin: dict = Depends(require_admin),
+    _admin: dict = Depends(require_permission("approve_vm")),
 ):
     vm_request = db.get(VMRequest, request_id)
     if vm_request is None:

@@ -22,6 +22,10 @@ async def test_connection(connection: Connection) -> tuple[bool, str]:
         return await _test_glpi(cfg)
     if connection.type == "gitea":
         return await asyncio.to_thread(_test_gitea, cfg)
+    if connection.type == "windows_dns":
+        return await asyncio.to_thread(_test_windows_dns, cfg)
+    if connection.type == "vmware":
+        return await asyncio.to_thread(_test_vmware, cfg)
 
     url = cfg.get("base_url") or cfg.get("api_url")
     if not url:
@@ -42,10 +46,10 @@ async def _test_proxmox(cfg: dict) -> tuple[bool, str]:
             )
         if resp.status_code == 200:
             data = resp.json().get("data", {})
-            return True, f"OK — Proxmox VE {data.get('version', '?')}"
+            return True, f"OK - Proxmox VE {data.get('version', '?')}"
         if resp.status_code == 401:
-            return False, "401 Unauthorized — token invalide ou realm incorrect."
-        return False, f"HTTP {resp.status_code} — {resp.text[:200]}"
+            return False, "401 Unauthorized - token invalide ou realm incorrect."
+        return False, f"HTTP {resp.status_code} - {resp.text[:200]}"
     except httpx.HTTPError as exc:
         return False, describe_connector_error(exc)
 
@@ -62,7 +66,7 @@ async def _test_phpipam(cfg: dict) -> tuple[bool, str]:
             resp = await client.post(f"{base_url}/api/{app_id}/user/", auth=(username, password))
         data = resp.json()
         if data.get("success"):
-            return True, "OK — authentification phpIPAM réussie"
+            return True, "OK - authentification phpIPAM réussie"
         return False, f"Échec authentification : {data.get('message', resp.text[:200])}"
     except httpx.HTTPError as exc:
         return False, describe_connector_error(exc)
@@ -76,7 +80,7 @@ async def _test_glpi(cfg: dict) -> tuple[bool, str]:
         # bloquer la boucle asyncio (sinon check_connectors() sérialise tout malgré le
         # asyncio.gather, un appel bloquant dans une coroutine bloque tout le monde).
         await asyncio.to_thread(_get_token, cfg)
-        return True, "OK — authentification GLPI (OAuth2) réussie"
+        return True, "OK - authentification GLPI (OAuth2) réussie"
     except GlpiError as exc:
         return False, str(exc)
     except httpx.HTTPError as exc:
@@ -98,16 +102,65 @@ def _test_gitea(cfg: dict) -> tuple[bool, str]:
             capture_output=True, text=True, timeout=12,
         )
         if result.returncode == 0:
-            return True, "OK — deploy key authentifiée, repo accessible"
+            return True, "OK - deploy key authentifiée, repo accessible"
         return False, f"git ls-remote a échoué : {result.stderr.strip()[:300]}"
     except subprocess.TimeoutExpired:
-        return False, "Timeout — hôte injoignable."
+        return False, "Timeout - hôte injoignable."
+
+
+def _test_vmware(cfg: dict) -> tuple[bool, str]:
+    api_url = cfg.get("api_url", "")
+    username = cfg.get("username", "")
+    password = cfg.get("password", "")
+    if not all([api_url, username, password]):
+        return False, "URL vCenter, utilisateur et mot de passe requis."
+
+    host = api_url.replace("https://", "").replace("http://", "").rstrip("/").split("/")[0]
+
+    from pyVim.connect import Disconnect, SmartConnect
+    from pyVmomi import vim
+
+    context = None
+    if cfg.get("insecure_tls", True):
+        import ssl
+        context = ssl._create_unverified_context()
+
+    try:
+        si = SmartConnect(host=host, user=username, pwd=password, port=443, sslContext=context)
+    except vim.fault.InvalidLogin:
+        return False, "Authentification refusee - identifiants invalides."
+    except Exception as exc:  # noqa: BLE001 - pyVmomi leve des erreurs variees (SSL, DNS, timeout...)
+        return False, str(exc)[:300]
+
+    try:
+        about = si.content.about
+        return True, f"OK - {about.fullName} (API {about.apiVersion})"
+    finally:
+        Disconnect(si)
+
+
+def _test_windows_dns(cfg: dict) -> tuple[bool, str]:
+    server = cfg.get("server", "")
+    zone = cfg.get("zone", "")
+    username = cfg.get("username", "")
+    password = cfg.get("password", "")
+    if not all([server, zone, username, password]):
+        return False, "Serveur, zone, utilisateur et mot de passe requis."
+    try:
+        import winrm
+        session = winrm.Session(f"http://{server}:5985/wsman", auth=(username, password), transport="ntlm")
+        result = session.run_ps(f'Get-DnsServerZone -Name "{zone}" -ComputerName "{server}" | Select -First 1')
+        if result.status_code == 0:
+            return True, "OK - WinRM authentifie, zone DNS trouvee"
+        return False, f"Zone/authentification invalide : {(result.std_err or b'').decode(errors='replace')[:300]}"
+    except Exception as exc:  # noqa: BLE001 - erreurs WinRM variees (connexion, auth, SSL...), pas de type unique utile
+        return False, describe_connector_error(exc) if hasattr(exc, "request") else str(exc)[:300]
 
 
 async def _test_http_reachable(url: str, insecure: bool = False) -> tuple[bool, str]:
     try:
         async with httpx.AsyncClient(verify=not insecure, timeout=8, follow_redirects=True) as client:
             resp = await client.get(url)
-        return True, f"Hôte joignable — HTTP {resp.status_code}"
+        return True, f"Hôte joignable - HTTP {resp.status_code}"
     except httpx.HTTPError as exc:
         return False, describe_connector_error(exc)

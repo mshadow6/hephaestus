@@ -6,13 +6,17 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from app.connections.store import Connection
 from app.ipam.base import IpReservation
 from app.models import VMRequest
 from app.provisioning.inventory import resolve_template_vmid
 
 logger = logging.getLogger(__name__)
 
-MODULE_SOURCE_DIR = Path("/app/terraform/proxmox")
+MODULE_DIRS = {
+    "proxmox": Path("/app/terraform/proxmox"),
+    "vmware": Path("/app/terraform/vsphere"),
+}
 RUNS_BASE_DIR = Path("/app/terraform-runs")
 
 
@@ -25,7 +29,7 @@ class ProvisioningError(RuntimeError):
 
 @dataclass
 class TerraformResult:
-    vm_id: int
+    vm_id: str
     stdout: str
     stderr: str
 
@@ -34,21 +38,21 @@ def _run_dir(vm_request: VMRequest) -> Path:
     return RUNS_BASE_DIR / f"{vm_request.id}-{vm_request.hostname}"
 
 
-def _sync_module(run_dir: Path) -> None:
+def _sync_module(run_dir: Path, module_dir: Path) -> None:
     """Copie les fichiers .tf du module dans le dossier d'exécution dédié à cette VM.
 
     Ne touche pas à un éventuel .terraform/ ou terraform.tfstate déjà présent
     (retry d'une requête précédente) — seuls les fichiers .tf sont resynchronisés.
     """
     run_dir.mkdir(parents=True, exist_ok=True)
-    for tf_file in MODULE_SOURCE_DIR.glob("*.tf"):
+    for tf_file in module_dir.glob("*.tf"):
         shutil.copyfile(tf_file, run_dir / tf_file.name)
 
 
-def _render_tfvars(
-    vm_request: VMRequest, reservation: IpReservation, bootstrap_root_password: str, proxmox_config: dict
+def _render_tfvars_proxmox(
+    vm_request: VMRequest, reservation: IpReservation, bootstrap_root_password: str, config: dict
 ) -> dict:
-    resolved = resolve_template_vmid(proxmox_config, vm_request.os_template or "")
+    resolved = resolve_template_vmid(config, vm_request.os_template or "")
     if resolved is None:
         raise ProvisioningError(
             f"Template Proxmox introuvable : '{vm_request.os_template}' — vérifie le nom exact "
@@ -68,29 +72,87 @@ def _render_tfvars(
         # le clone Proxmox se fait sur le même node que le template, s'y fier est plus
         # sûr qu'un node configuré statiquement qui pourrait ne pas être le bon.
         "proxmox_node": template_node,
-        "proxmox_insecure": proxmox_config.get("insecure_tls", True),
+        "proxmox_insecure": config.get("insecure_tls", True),
         "vm_name": vm_request.hostname,
         "vm_vcpu": vm_request.cpu,
         "vm_ram_mb": vm_request.ram_gb * 1024,
         "vm_disk_gb": vm_request.disk_gb,
         "template_vmid": template_vmid,
-        "vlan_tag": int(vm_request.vlan),
-        "network_bridge": proxmox_config.get("network_bridge") or "vmbr0",
-        "disk_storage": proxmox_config.get("disk_storage") or "local-lvm",
-        "disk_interface": proxmox_config.get("disk_interface") or "scsi0",
+        # None (réseau à plat, pas de VLAN configuré côté IPAM — voir
+        # PhpIpamProvider._resolve_subnet) -> port untagged côté Proxmox, pas une erreur.
+        "vlan_tag": int(vm_request.vlan) if vm_request.vlan else None,
+        "network_bridge": config.get("network_bridge") or "vmbr0",
+        "disk_storage": config.get("disk_storage") or "local-lvm",
+        "disk_interface": config.get("disk_interface") or "scsi0",
         "vm_ip_address": f"{reservation.ip}/{reservation.netmask}",
         "vm_gateway": reservation.gateway,
         "vm_dns_servers": reservation.dns_servers or [],
+        "vm_dns_domain": reservation.dns_domain,
         "vm_bootstrap_root_password": bootstrap_root_password,
     }
 
 
-def _terraform_env(proxmox_config: dict) -> dict[str, str]:
+def _render_tfvars_vmware(
+    vm_request: VMRequest, reservation: IpReservation, bootstrap_root_password: str, config: dict
+) -> dict:
+    if not reservation.gateway:
+        raise ProvisioningError(
+            "La réservation IPAM n'a pas de gateway — impossible de configurer une IP "
+            "statique (un serveur ne doit jamais dépendre du DHCP)."
+        )
+    missing = [k for k in ("datacenter", "host", "datastore", "network") if not config.get(k)]
+    if missing:
+        raise ProvisioningError(
+            f"Connexion VMware incomplète pour la création de VM — champs manquants : "
+            f"{', '.join(missing)} (à renseigner sur /connections)."
+        )
+    host = config["api_url"].replace("https://", "").replace("http://", "").rstrip("/").split("/")[0]
+    return {
+        "vsphere_server": host,
+        "vsphere_user": config["username"],
+        "vsphere_password": config["password"],
+        "vsphere_insecure": config.get("insecure_tls", True),
+        "datacenter": config["datacenter"],
+        "host": config["host"],
+        "datastore": config["datastore"],
+        "network": config["network"],
+        "template_name": vm_request.os_template,
+        "vm_name": vm_request.hostname,
+        "vm_vcpu": vm_request.cpu,
+        "vm_ram_mb": vm_request.ram_gb * 1024,
+        "vm_disk_gb": vm_request.disk_gb,
+        "vm_ip_cidr": f"{reservation.ip}/{reservation.netmask}",
+        "vm_gateway": reservation.gateway,
+        "vm_dns_servers": reservation.dns_servers or [],
+        "vm_dns_domain": reservation.dns_domain,
+        "vm_bootstrap_root_password": bootstrap_root_password,
+    }
+
+
+_TFVARS_BUILDERS = {
+    "proxmox": _render_tfvars_proxmox,
+    "vmware": _render_tfvars_vmware,
+}
+
+
+def _terraform_env_proxmox(config: dict) -> dict[str, str]:
     env = os.environ.copy()
-    env["TF_VAR_proxmox_api_url"] = proxmox_config["api_url"]
-    env["TF_VAR_proxmox_api_token"] = proxmox_config["api_token"]
+    env["TF_VAR_proxmox_api_url"] = config["api_url"]
+    env["TF_VAR_proxmox_api_token"] = config["api_token"]
     env["TF_IN_AUTOMATION"] = "1"
     return env
+
+
+def _terraform_env_vmware(config: dict) -> dict[str, str]:
+    env = os.environ.copy()
+    env["TF_IN_AUTOMATION"] = "1"
+    return env
+
+
+_ENV_BUILDERS = {
+    "proxmox": _terraform_env_proxmox,
+    "vmware": _terraform_env_vmware,
+}
 
 
 def _run(cmd: list[str], cwd: Path, env: dict[str, str], timeout: int) -> subprocess.CompletedProcess:
@@ -99,13 +161,15 @@ def _run(cmd: list[str], cwd: Path, env: dict[str, str], timeout: int) -> subpro
 
 
 def apply_vm(
-    vm_request: VMRequest, reservation: IpReservation, bootstrap_root_password: str, proxmox_config: dict
+    vm_request: VMRequest, reservation: IpReservation, bootstrap_root_password: str, hypervisor_conn: Connection
 ) -> TerraformResult:
-    """Clone et configure la VM sur Proxmox via Terraform, avec IP statique (jamais de
-    DHCP pour un serveur) — l'IP/masque/gateway/DNS viennent de la réservation IPAM.
+    """Clone et configure la VM via Terraform (Proxmox ou VMware, selon
+    `hypervisor_conn.type` — voir MODULE_DIRS), avec IP statique (jamais de DHCP pour un
+    serveur) — l'IP/masque/gateway/DNS viennent de la réservation IPAM.
 
-    `proxmox_config` vient de la connexion "hypervisor" active (voir
-    app.connections.store.get_active_connection) : api_url, api_token, node, etc.
+    `hypervisor_conn` vient de la connexion "hypervisor" choisie pour cette requête (voir
+    app.worker.tasks._resolve_hypervisor_connection) : plusieurs peuvent être actives en
+    même temps (Proxmox + VMware), chaque VMRequest cible la sienne explicitement.
 
     `bootstrap_root_password` est un mot de passe root éphémère (généré par l'appelant,
     différent à chaque requête) injecté via cloud-init : il ne sert qu'une fois, pour la
@@ -114,13 +178,19 @@ def apply_vm(
 
     Lève ProvisioningError (avec stdout/stderr attachés) si terraform échoue.
     """
-    run_dir = _run_dir(vm_request)
-    _sync_module(run_dir)
+    module_dir = MODULE_DIRS.get(hypervisor_conn.type)
+    tfvars_builder = _TFVARS_BUILDERS.get(hypervisor_conn.type)
+    env_builder = _ENV_BUILDERS.get(hypervisor_conn.type)
+    if module_dir is None or tfvars_builder is None or env_builder is None:
+        raise ProvisioningError(f"Type d'hyperviseur non supporté pour la création de VM : '{hypervisor_conn.type}'")
 
-    tfvars = _render_tfvars(vm_request, reservation, bootstrap_root_password, proxmox_config)
+    run_dir = _run_dir(vm_request)
+    _sync_module(run_dir, module_dir)
+
+    tfvars = tfvars_builder(vm_request, reservation, bootstrap_root_password, hypervisor_conn.config)
     (run_dir / "terraform.tfvars.json").write_text(json.dumps(tfvars, indent=2))
 
-    env = _terraform_env(proxmox_config)
+    env = env_builder(hypervisor_conn.config)
 
     init = _run(["terraform", "init", "-input=false", "-no-color"], run_dir, env, timeout=120)
     logger.info("terraform init stdout:\n%s", init.stdout)
@@ -153,4 +223,4 @@ def apply_vm(
 
     vm_id = json.loads(output.stdout)
 
-    return TerraformResult(vm_id=vm_id, stdout=apply.stdout, stderr=apply.stderr)
+    return TerraformResult(vm_id=str(vm_id), stdout=apply.stdout, stderr=apply.stderr)

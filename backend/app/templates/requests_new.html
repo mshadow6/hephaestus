@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Nouvelle demande de VM — Hephaestus{% endblock %}
+{% block title %}Nouvelle demande de VM - Hephaestus{% endblock %}
 {% block content %}
-<div class="page-header"><h2>Création de VM — Nouvelle demande</h2></div>
+<div class="page-header"><h2>Création de VM - Nouvelle demande</h2></div>
 
 <div class="card">
   <div class="help" style="padding: 1rem 1.25rem 0;">
-    Point d'entrée natif, en plus du webhook GLPI (<code>/webhooks/glpi</code>) — les deux
+    Point d'entrée natif, en plus du webhook GLPI (<code>/webhooks/glpi</code>) - les deux
     créent exactement la même demande et suivent ensuite le même circuit (validation,
     réservation IP, création, post-install). GLPI n'est pas une dépendance du pipeline,
     juste une façon parmi d'autres de déclencher une demande.
@@ -20,20 +20,34 @@
         <input type="text" id="hostname" name="hostname" required placeholder="ex : srv-app-03">
       </div>
       <div class="form-field">
+        <label for="hypervisor_connection">Hyperviseur</label>
+        {% if hypervisor_connections %}
+        <select id="hypervisor_connection" name="hypervisor_connection" onchange="filterTemplatesByHypervisor()">
+          {% for c in hypervisor_connections %}
+          <option value="{{ c.name }}">{{ c.name }} ({{ c.type }})</option>
+          {% endfor %}
+        </select>
+        <div class="help">Plusieurs hyperviseurs peuvent être actifs en même temps - choisis la cible de cette VM.</div>
+        {% else %}
+        <div class="empty-state">Aucune connexion hyperviseur active - configure-en une sur /connections.</div>
+        {% endif %}
+      </div>
+      <div class="form-field">
         <label for="os_template">Template / image</label>
         {% if available_templates %}
         <select id="os_template" name="os_template">
-          <option value="">— choisir —</option>
+          <option value="">- choisir -</option>
           {% for t in available_templates %}
-          <option value="{{ t.name }}">{{ t.name }} (node {{ t.node }})</option>
+          <option value="{{ t.name }}" data-source="{{ t.source }}">{{ t.name }} ({{ t.node }})</option>
           {% endfor %}
         </select>
+        <div class="help">La liste se filtre selon l'hyperviseur choisi ci-dessus.</div>
         {% else %}
         <input type="text" id="os_template" name="os_template" placeholder="ex : tmpl-debian13">
         <div class="help">
-          Aucun template détecté sur le cluster (connexion Proxmox absente/injoignable, ou
-          aucune VM marquée "template" dessus) — saisie libre, le nom doit correspondre
-          exactement à un template existant.
+          Aucun template détecté (connexion hyperviseur absente/injoignable, ou aucune VM
+          marquée "template" dessus) - saisie libre, le nom doit correspondre exactement à
+          un template existant.
         </div>
         {% endif %}
       </div>
@@ -45,7 +59,7 @@
         <label for="vlan">VLAN</label>
         {% if configured_vlans %}
         <select id="vlan" name="vlan">
-          <option value="">— aucun —</option>
+          <option value="">- aucun -</option>
           {% for v in configured_vlans %}
           <option value="{{ v }}">{{ v }}</option>
           {% endfor %}
@@ -53,7 +67,7 @@
         <div class="help">Liste des VLAN configurés sur la connexion IPAM active (/connections/.../subnets).</div>
         {% else %}
         <input type="text" id="vlan" name="vlan" placeholder="ex : 100">
-        <div class="help">Optionnel — laisse vide si ton infra n'utilise pas de VLAN.</div>
+        <div class="help">Optionnel - laisse vide si ton infra n'utilise pas de VLAN.</div>
         {% endif %}
       </div>
       <div class="form-field">
@@ -74,4 +88,26 @@
     </div>
   </form>
 </div>
+<script>
+  // Un seul <select> de templates, toutes connexions confondues (data-source par
+  // option) - plutôt qu'un aller-retour serveur à chaque changement d'hyperviseur,
+  // on affiche/masque côté client : la liste est petite, pas besoin d'un htmx ici.
+  function filterTemplatesByHypervisor() {
+    var hyp = document.getElementById("hypervisor_connection");
+    var tmpl = document.getElementById("os_template");
+    if (!hyp || !tmpl || tmpl.tagName !== "SELECT") return;
+    var selected = hyp.value;
+    var firstVisible = null;
+    Array.prototype.forEach.call(tmpl.options, function (opt) {
+      if (!opt.value) { opt.hidden = false; return; }
+      var match = opt.dataset.source === selected;
+      opt.hidden = !match;
+      if (match && firstVisible === null) firstVisible = opt.value;
+    });
+    if (tmpl.selectedOptions.length && tmpl.selectedOptions[0].hidden) {
+      tmpl.value = firstVisible || "";
+    }
+  }
+  document.addEventListener("DOMContentLoaded", filterTemplatesByHypervisor);
+</script>
 {% endblock %}

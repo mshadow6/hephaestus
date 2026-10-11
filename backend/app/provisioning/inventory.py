@@ -79,6 +79,72 @@ def discover_proxmox_templates() -> list[dict]:
     return results
 
 
+def discover_vsphere_templates() -> list[dict]:
+    """Templates (VM marquées template) disponibles sur toutes les connexions VMware
+    activées — même intention que discover_proxmox_templates, forme compatible
+    ({name, node, source}) pour que /requests/new affiche les deux sans distinction."""
+    results: list[dict] = []
+    vmware_conns = [c for c in list_connections() if c.enabled and c.type == "vmware"]
+    for conn in vmware_conns:
+        cfg = conn.config
+        if not all([cfg.get("api_url"), cfg.get("username"), cfg.get("password")]):
+            continue
+        try:
+            from pyVim.connect import Disconnect, SmartConnect
+            from pyVmomi import vim
+            import ssl
+
+            host = cfg["api_url"].replace("https://", "").replace("http://", "").rstrip("/").split("/")[0]
+            context = ssl._create_unverified_context() if cfg.get("insecure_tls", True) else None
+            si = SmartConnect(host=host, user=cfg["username"], pwd=cfg["password"], port=443, sslContext=context)
+            try:
+                content = si.RetrieveContent()
+
+                def find_datacenters(folder):
+                    found = []
+                    for item in folder.childEntity:
+                        if isinstance(item, vim.Datacenter):
+                            found.append(item)
+                        elif isinstance(item, vim.Folder):
+                            found.extend(find_datacenters(item))
+                    return found
+
+                def walk_vm(folder):
+                    for item in folder.childEntity:
+                        if isinstance(item, vim.VirtualMachine) and item.config and item.config.template:
+                            results.append({
+                                "name": item.name, "node": cfg.get("host", "vSphere"),
+                                "source": conn.name, "vmid": None,
+                            })
+                        elif isinstance(item, vim.Folder):
+                            walk_vm(item)
+
+                for dc in find_datacenters(content.rootFolder):
+                    walk_vm(dc.vmFolder)
+            finally:
+                Disconnect(si)
+        except Exception as exc:  # noqa: BLE001 - pyVmomi lève des erreurs variées (SSL, DNS, auth...)
+            logger.warning("Liste des templates VMware échouée pour la connexion '%s' : %s", conn.name, exc)
+    return results
+
+
+def discover_templates() -> list[dict]:
+    """Templates de TOUTES les connexions hyperviseur actives (plusieurs peuvent l'être
+    en même temps - Proxmox + VMware, voir app.connections.store.MULTI_ACTIVE_CATEGORIES)
+    - chaque entrée garde `source` (nom de connexion) pour que le formulaire associe
+    chaque template à l'hyperviseur dont il vient, et ne propose jamais un template
+    qu'on ne pourrait pas déployer avec la connexion choisie."""
+    from app.connections.store import list_active_connections
+
+    results: list[dict] = []
+    for conn in list_active_connections("hypervisor"):
+        if conn.type == "proxmox":
+            results.extend([t for t in discover_proxmox_templates() if t["source"] == conn.name])
+        elif conn.type == "vmware":
+            results.extend([t for t in discover_vsphere_templates() if t["source"] == conn.name])
+    return results
+
+
 def resolve_template_vmid(proxmox_config: dict, template_name: str) -> tuple[int, str] | None:
     """Pour LA connexion utilisée à la création (pas toutes) — renvoie (vmid, node) du
     template nommé `template_name`, ou None si introuvable. Le node renvoyé est celui où

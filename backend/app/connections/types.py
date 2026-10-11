@@ -105,6 +105,11 @@ PROVIDER_TYPES: dict[str, ProviderType] = {
             ConnectionField("password", "Mot de passe", input_type="password"),
             ConnectionField("insecure_tls", "Ignorer la validation TLS", input_type="checkbox",
                              required=False, default=True),
+            ConnectionField("datacenter", "Datacenter", help_text="ex: Datacenter"),
+            ConnectionField("host", "Hôte ESXi cible", help_text="ex: 192.168.1.153 - hôte "
+                             "standalone, pas un vrai cluster DRS/HA"),
+            ConnectionField("datastore", "Datastore", help_text="ex: datastore1"),
+            ConnectionField("network", "Réseau / port group", help_text="ex: VM Network"),
         ],
     ),
     "glpi": ProviderType(
