@@ -10,6 +10,10 @@ class IpReservation:
     netmask: str = "24"  # longueur de préfixe CIDR (ex: "24" pour /24)
     gateway: str | None = None
     dns_servers: list[str] | None = None
+    # Domaine de recherche DNS (ex: "home.lab") -> injecté dans le cloud-init de la VM à
+    # la création, pour que les noms courts (ping hyp-srv-01) marchent tout seuls sur la
+    # VM aussi, pas juste sur le poste de l'utilisateur.
+    dns_domain: str | None = None
     reservation_id: str | None = None
 
 

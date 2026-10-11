@@ -56,6 +56,7 @@ class PhpIpamProvider(IpamProvider):
                 "vlan": None,
                 "gateway": self.config.get("gateway", ""),
                 "dns_servers": self.config.get("dns_servers", ""),
+                "dns_domain": self.config.get("dns_domain", ""),
                 "allocation_range_start": self.config.get("allocation_range_start", ""),
                 "allocation_range_end": self.config.get("allocation_range_end", ""),
             }
@@ -169,6 +170,7 @@ class PhpIpamProvider(IpamProvider):
             netmask="24",
             gateway=gateway,
             dns_servers=dns_servers or None,
+            dns_domain=subnet.get("dns_domain") or None,
             reservation_id=str(address_id) if address_id else None,
         )
         logger.info("[phpIPAM] reserve_ip(vlan=%s, hostname=%s) -> %s", vlan, hostname, reservation)
