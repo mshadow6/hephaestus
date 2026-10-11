@@ -1,0 +1,58 @@
+name: Signaler un bug
+description: Un comportement cassé ou inattendu dans Hephaestus
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Description du bug
+      description: Qu'est-ce qui ne fonctionne pas ?
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Étapes pour reproduire
+      description: Les actions précises qui mènent au bug
+      placeholder: |
+        1. Aller sur /requests/new
+        2. Choisir l'hyperviseur VMware
+        3. ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportement attendu
+    validations:
+      required: false
+
+  - type: dropdown
+    id: hypervisor
+    attributes:
+      label: Hyperviseur concerné
+      options:
+        - Proxmox
+        - VMware/vCenter
+        - Aucun des deux / pas lié à ça
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Version de l'application
+      description: Tag ou commit utilisé (ex. v1.1, ou `git rev-parse --short HEAD`)
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs pertinents
+      description: Sortie de `docker compose logs backend worker`, ou le détail de l'étape en échec sur la page de la demande de VM
+      render: shell
+    validations:
+      required: false
