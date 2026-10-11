@@ -1,5 +1,5 @@
 # Override pour utiliser l'image pré-construite (GitHub Container Registry) au lieu de
-# compiler depuis les sources — plus rapide pour démarrer (pas de build local de
+# compiler depuis les sources, plus rapide pour démarrer (pas de build local de
 # Terraform/Ansible/dépendances Python), au prix de ne pas pouvoir modifier le code
 # sans reconstruire quand même.
 #
