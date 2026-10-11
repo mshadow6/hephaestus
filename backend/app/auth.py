@@ -49,7 +49,13 @@ def current_user_or_none(request: Request) -> dict | None:
     return request.session.get("user")
 
 
-def require_admin(user: dict = Depends(require_login)) -> dict:
-    if user.get("role") != "admin":
-        raise HTTPException(status_code=403, detail="Action réservée aux administrateurs")
-    return user
+def require_permission(permission: str):
+    """Dépendance paramétrée : l'utilisateur doit avoir `permission` dans les
+    permissions de son groupe (voir app.permissions.ALL_PERMISSIONS et app.models.Group).
+    Les permissions sont figées dans la session à la connexion — un changement de groupe
+    ne prend effet qu'à la prochaine connexion (même limite qu'avant avec `role`)."""
+    def _check(user: dict = Depends(require_login)) -> dict:
+        if permission not in (user.get("permissions") or []):
+            raise HTTPException(status_code=403, detail="Permission insuffisante pour cette action")
+        return user
+    return _check

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Paramètres — Hephaestus{% endblock %}
+{% block title %}Paramètres - Hephaestus{% endblock %}
 {% block content %}
 <div class="page-header"><h2>Paramètres</h2></div>
 
@@ -10,7 +10,11 @@
   </a>
   <a class="settings-tile" href="/settings/users">
     <strong>Utilisateurs</strong>
-    <span>Comptes, rôles : admin, lecture seule</span>
+    <span>Comptes, groupe assigné à chacun</span>
+  </a>
+  <a class="settings-tile" href="/settings/groups">
+    <strong>Groupes</strong>
+    <span>Permissions personnalisables par groupe</span>
   </a>
   <a class="settings-tile" href="/settings/ldap">
     <strong>LDAP/LDAPS</strong>

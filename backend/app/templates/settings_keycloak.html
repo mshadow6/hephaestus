@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Keycloak — Hephaestus{% endblock %}
+{% block title %}Keycloak - Hephaestus{% endblock %}
 {% block content %}
 <a class="back-link" href="/settings">&larr; Retour aux paramètres</a>
 
@@ -26,14 +26,18 @@
       </div>
       <div class="form-field">
         <label for="client_secret">Client secret</label>
-        <input type="password" id="client_secret" name="client_secret" value="{{ config.client_secret }}">
+        <input type="password" id="client_secret" name="client_secret" value=""
+               placeholder="{{ '•••••••• (laisser vide pour ne pas changer)' if config.client_secret else '' }}"
+               autocomplete="new-password">
+        {% if config.client_secret %}<div class="help">Une valeur est déjà enregistrée - laisse vide pour la garder.</div>{% endif %}
       </div>
       <div class="form-field">
-        <label>Rôle au premier login</label>
-        <div class="type-picker">
-          <label><input type="radio" name="default_role" value="viewer" {% if config.default_role != 'admin' %}checked{% endif %}> <span>Lecture seule</span></label>
-          <label><input type="radio" name="default_role" value="admin" {% if config.default_role == 'admin' %}checked{% endif %}> <span>Admin</span></label>
-        </div>
+        <label for="default_group">Groupe au premier login</label>
+        <select id="default_group" name="default_group">
+          {% for g in groups %}
+          <option value="{{ g.name }}" {% if config.default_group == g.name %}selected{% endif %}>{{ g.name }}</option>
+          {% endfor %}
+        </select>
       </div>
     </div>
     <div class="form-actions">
@@ -52,13 +56,13 @@
 
 <div class="section-title" style="margin-left:0">Comment ça marche</div>
 <div class="card" style="padding:1.25rem; font-size:0.85rem; color:var(--text-muted)">
-  <p>Côté Keycloak : URL de redirection à autoriser sur le client —
+  <p>Côté Keycloak : URL de redirection à autoriser sur le client -
   <code class="mono">{{ callback_url }}</code></p>
   <p>Même principe que LDAP : premier login réussi crée un compte "fantôme" (rôle choisi
-  ci-dessus), l'auth repasse par Keycloak à chaque connexion suivante — pas de mot de
+  ci-dessus), l'auth repasse par Keycloak à chaque connexion suivante - pas de mot de
   passe stocké côté app.</p>
   <p style="margin-bottom:0">"Tester la connexion" vérifie seulement que le realm répond
-  correctement sur son document de découverte OIDC — pas un test de connexion
+  correctement sur son document de découverte OIDC - pas un test de connexion
   utilisateur complet (impossible sans navigateur pour suivre la redirection).</p>
 </div>
 {% endblock %}

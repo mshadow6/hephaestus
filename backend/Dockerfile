@@ -19,4 +19,10 @@ COPY worker.py .
 COPY alembic.ini .
 COPY alembic ./alembic
 
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# --proxy-headers fait confiance à X-Forwarded-Proto/-For envoyés par Caddy (seul
+# conteneur qui peut atteindre le backend, voir docker-compose.yml — plus de "ports:"
+# directs dessus) : sans ça, request.url.scheme restait "http" même avec le HTTPS activé
+# côté Caddy (la connexion interne Caddy -> backend est toujours en clair), ce qui
+# cassait silencieusement le redirect_uri OIDC de Keycloak (généré en http:// au lieu de
+# https://, rejeté par le realm car ne correspondant pas à l'URL enregistrée).
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips='*'"]

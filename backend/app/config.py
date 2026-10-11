@@ -27,6 +27,13 @@ class Settings(BaseSettings):
     # Jamais commité : uniquement en .env.
     ansible_admin_password: str = ""
 
+    # Chiffrement au repos des champs secrets stockés sur disque (connexions providers,
+    # LDAP, Keycloak — voir app.secrets_crypto) — Fernet, clé générée une fois, jamais
+    # commitée. Protège contre la lecture directe des fichiers de config (backup qui
+    # fuit, volume exfiltré...), pas contre un accès complet au conteneur qui a de toute
+    # façon cette clé pour pouvoir déchiffrer et utiliser ces secrets en fonctionnement.
+    config_encryption_key: str = ""
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

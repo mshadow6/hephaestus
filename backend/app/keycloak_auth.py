@@ -7,6 +7,8 @@ import httpx
 import yaml
 from authlib.integrations.starlette_client import OAuth
 
+from app.secrets_crypto import decrypt_value, encrypt_value
+
 CONFIG_PATH = Path("/app/config/keycloak.yaml")
 
 DEFAULT_CONFIG = {
@@ -15,8 +17,9 @@ DEFAULT_CONFIG = {
     "issuer_url": "",
     "client_id": "",
     "client_secret": "",
-    # Rôle attribué au premier login réussi — le plus restrictif par défaut, comme LDAP.
-    "default_role": "viewer",
+    # Nom du groupe attribué au premier login réussi — le plus restrictif par défaut,
+    # comme LDAP (voir app.models.Group).
+    "default_group": "Invité",
 }
 
 
@@ -24,12 +27,15 @@ def load_keycloak_config() -> dict:
     if not CONFIG_PATH.exists():
         return dict(DEFAULT_CONFIG)
     data = yaml.safe_load(CONFIG_PATH.read_text()) or {}
-    return {**DEFAULT_CONFIG, **data}
+    merged = {**DEFAULT_CONFIG, **data}
+    merged["client_secret"] = decrypt_value(merged.get("client_secret", ""))
+    return merged
 
 
 def save_keycloak_config(config: dict) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(yaml.safe_dump(config, sort_keys=False, allow_unicode=True))
+    to_write = {**config, "client_secret": encrypt_value(config.get("client_secret", ""))}
+    CONFIG_PATH.write_text(yaml.safe_dump(to_write, sort_keys=False, allow_unicode=True))
 
 
 def build_oauth_client(config: dict) -> OAuth:

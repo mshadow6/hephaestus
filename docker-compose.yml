@@ -7,8 +7,11 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-vmprov}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-vmprov}
       POSTGRES_DB: ${POSTGRES_DB:-vmprovisioning}
-    ports:
-      - "5432:5432"
+    # Pas de "ports:" ici volontairement — atteignable seulement depuis les autres
+    # conteneurs du réseau docker-compose (par leur nom DNS interne "postgres"), jamais
+    # depuis l'hôte ou le LAN. Exposer une base de données directement sur le réseau est
+    # une surface d'attaque inutile (trouvé en revue de sécurité : n'importe qui sur le
+    # LAN pouvait tenter de s'y connecter).
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
@@ -21,12 +24,18 @@ services:
     image: redis:7-alpine
     container_name: vmprov-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
+    # Pas de "ports:" ici volontairement (même raison que postgres) — et surtout : sans
+    # mot de passe, Redis en accès réseau direct exposait toute la file de jobs RQ (y
+    # compris, en transit, le mot de passe root éphémère généré pour le bootstrap Ansible
+    # de chaque VM) à n'importe qui sur le LAN, et permettait en théorie d'y injecter des
+    # jobs arbitraires exécutés par le worker (trouvé en revue de sécurité).
+    command: redis-server --requirepass ${REDIS_PASSWORD:?REDIS_PASSWORD requis dans .env}
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD requis dans .env}
     volumes:
       - redis_data:/data
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD:-}", "--no-auth-warning", "ping"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -38,15 +47,19 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vmprov}:${POSTGRES_PASSWORD:-vmprov}@postgres:5432/${POSTGRES_DB:-vmprovisioning}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
     volumes:
       - ./config:/app/config:z
       - ./.secrets:/app/.secrets:ro
       - ansible_playbooks:/app/ansible-playbooks:ro
       - tls_certs:/data/tls
       - audit_logs:/app/logs
-    ports:
-      - "8000:8000"
+    # Pas de "ports:" ici volontairement — tout passe par Caddy (seul point d'entrée
+    # HTTP/HTTPS, en-têtes de sécurité, redirection TLS). Exposer aussi le backend en
+    # direct sur 8000 permettait de contourner Caddy entièrement : pas de HTTPS, pas des
+    # en-têtes de sécurité, et surtout un en-tête X-Forwarded-For falsifiable à volonté
+    # (le journal d'audit se fie à cet en-tête pour l'IP réelle — trouvé en revue de
+    # sécurité).
     depends_on:
       postgres:
         condition: service_healthy
@@ -60,7 +73,7 @@ services:
     env_file: .env
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-vmprov}:${POSTGRES_PASSWORD:-vmprov}@postgres:5432/${POSTGRES_DB:-vmprovisioning}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       TF_PLUGIN_CACHE_DIR: /app/.terraform.d/plugin-cache
     volumes:
       - ./terraform:/app/terraform:ro

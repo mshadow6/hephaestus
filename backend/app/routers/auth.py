@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import RedirectResponse
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit_log import client_ip, log_account_disabled, log_account_locked, log_login_failure, log_login_success, log_logout
@@ -9,7 +10,7 @@ from app.auth import any_user_exists, get_user_by_username, hash_password, verif
 from app.database import get_db
 from app.keycloak_auth import build_oauth_client, load_keycloak_config
 from app.ldap_auth import authenticate as ldap_authenticate
-from app.models import User, UserRole
+from app.models import Group, User
 from app.templating import templates
 
 router = APIRouter(include_in_schema=False)
@@ -17,6 +18,22 @@ router = APIRouter(include_in_schema=False)
 LOCKOUT_THRESHOLD = 5          # échecs avant un verrouillage temporaire
 LOCKOUT_DURATION = timedelta(minutes=1)
 DISABLE_THRESHOLD = 10         # échecs avant verrouillage définitif (hors compte protégé)
+
+
+def _session_payload(user: User) -> dict:
+    return {
+        "id": user.id, "username": user.username,
+        "group": user.group.name, "permissions": user.group.permissions,
+    }
+
+
+def _group_by_name(db: Session, name: str) -> Group:
+    group = db.scalar(select(Group).where(Group.name == name))
+    if group is None:
+        # Groupe "Invité" introuvable (base jamais migrée, ou renommé/supprimé par erreur
+        # malgré is_system) -> le plus restrictif possible plutôt qu'un 500 au login.
+        group = db.scalar(select(Group).where(Group.is_system.is_(True)).order_by(Group.id))
+    return group
 
 
 @router.get("/setup")
@@ -46,15 +63,16 @@ def setup_submit(
             request, "setup.html", {"error": "Les mots de passe ne correspondent pas."}
         )
 
+    admin_group = db.scalar(select(Group).where(Group.name == "Admin"))
     user = User(
         username=username, password_hash=hash_password(password),
-        role=UserRole.admin, source="local",
+        group=admin_group, source="local",
         is_protected=True,  # tout premier admin = compte de secours, jamais verrouillable définitivement
     )
     db.add(user)
     db.commit()
 
-    request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
+    request.session["user"] = _session_payload(user)
     return RedirectResponse(url="/", status_code=303)
 
 
@@ -117,8 +135,8 @@ def login_submit(
     elif user is None and ldap_authenticate(username, password):
         # Premier login LDAP réussi : on crée un compte local "fantôme" (pas de mot de
         # passe stocké, l'auth repasse par l'annuaire à chaque fois) pour pouvoir gérer
-        # son rôle depuis /settings/users. Rôle par défaut le plus restrictif.
-        user = User(username=username, password_hash=None, role=UserRole.viewer, source="ldap")
+        # son groupe depuis /settings/users. Groupe le plus restrictif par défaut.
+        user = User(username=username, password_hash=None, group=_group_by_name(db, "Invité"), source="ldap")
         db.add(user)
         db.commit()
         auth_ok = True
@@ -130,7 +148,7 @@ def login_submit(
         user.locked_until = None
         db.commit()
         log_login_success(user.username, user.source, ip)
-        request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
+        request.session["user"] = _session_payload(user)
         return RedirectResponse(url=next or "/", status_code=303)
 
     if user is not None:
@@ -202,10 +220,11 @@ async def keycloak_callback(request: Request, db: Session = Depends(get_db)):
 
     user = get_user_by_username(db, username)
     if user is None:
-        # Même principe que le premier login LDAP : compte "fantôme", rôle le plus
-        # restrictif par défaut (configurable), à monter en admin depuis /settings/users.
-        role = UserRole.admin if config.get("default_role") == "admin" else UserRole.viewer
-        user = User(username=username, password_hash=None, role=role, source="keycloak")
+        # Même principe que le premier login LDAP : compte "fantôme", groupe configurable
+        # (nom de groupe en texte libre dans /settings/keycloak), à ajuster ensuite depuis
+        # /settings/users si besoin.
+        group = _group_by_name(db, config.get("default_group") or "Invité")
+        user = User(username=username, password_hash=None, group=group, source="keycloak")
         db.add(user)
         db.commit()
     elif user.source != "keycloak":
@@ -216,5 +235,5 @@ async def keycloak_callback(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse(url="/login?error=Compte+désactivé", status_code=303)
 
     log_login_success(user.username, "keycloak", ip)
-    request.session["user"] = {"id": user.id, "username": user.username, "role": user.role.value}
+    request.session["user"] = _session_payload(user)
     return RedirectResponse(url="/", status_code=303)

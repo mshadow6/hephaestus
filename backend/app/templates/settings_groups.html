@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}Groupes - Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings">&larr; Retour aux paramètres</a>
+
+<div class="page-header"><h2>Groupes de permissions</h2></div>
+
+<div class="help" style="margin: 0 0 1rem;">
+  <strong>Admin</strong> et <strong>Invité</strong> sont des groupes système (toujours là, non modifiables) -
+  garantit qu'il reste toujours un groupe avec tous les droits et un groupe le plus restrictif possible.
+  Crée librement d'autres groupes avec le sous-ensemble de permissions que tu veux.
+</div>
+
+{% if request.query_params.get('error') %}<div class="error-box" style="margin: 0 0 1rem;">{{ request.query_params.get('error') }}</div>{% endif %}
+
+<div class="card">
+  {% if groups %}
+  <table>
+    <thead><tr><th>Nom</th><th>Permissions</th><th>Utilisateurs</th><th></th></tr></thead>
+    <tbody>
+      {% for g in groups %}
+      <tr>
+        <td>{{ g.name }}{% if g.is_system %} <span class="info-note" title="Groupe système - non supprimable">🛡</span>{% endif %}</td>
+        <td>
+          {% if g.permissions %}
+          {% for p in g.permissions %}<span class="type-badge" style="margin: 0 0.25rem 0.25rem 0;">{{ p }}</span>{% endfor %}
+          {% else %}
+          <span class="category-hint">aucune</span>
+          {% endif %}
+        </td>
+        <td>{{ user_counts.get(g.id, 0) }}</td>
+        <td>
+          {% if not g.is_system %}
+          <a href="/settings/groups/{{ g.id }}/edit" class="btn btn-sm btn-secondary">Modifier</a>
+          <form method="post" action="/settings/groups/{{ g.id }}/delete"
+                onsubmit="return confirm('Supprimer le groupe {{ g.name }} ?');" style="display:inline">
+            <button type="submit" class="btn btn-sm btn-danger">Supprimer</button>
+          </form>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <div class="empty-state">Aucun groupe.</div>
+  {% endif %}
+</div>
+
+<div class="form-actions" style="padding: 1.25rem 0;">
+  <a href="/settings/groups/new" class="btn">Nouveau groupe</a>
+</div>
+{% endblock %}

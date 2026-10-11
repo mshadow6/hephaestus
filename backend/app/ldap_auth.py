@@ -4,6 +4,8 @@ import yaml
 from ldap3 import ALL, Connection, Server
 from ldap3.core.exceptions import LDAPException
 
+from app.secrets_crypto import decrypt_value, encrypt_value
+
 CONFIG_PATH = Path("/app/config/ldap.yaml")
 
 DEFAULT_CONFIG = {
@@ -21,12 +23,15 @@ def load_ldap_config() -> dict:
     if not CONFIG_PATH.exists():
         return dict(DEFAULT_CONFIG)
     data = yaml.safe_load(CONFIG_PATH.read_text()) or {}
-    return {**DEFAULT_CONFIG, **data}
+    merged = {**DEFAULT_CONFIG, **data}
+    merged["bind_password"] = decrypt_value(merged.get("bind_password", ""))
+    return merged
 
 
 def save_ldap_config(config: dict) -> None:
     CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    CONFIG_PATH.write_text(yaml.safe_dump(config, sort_keys=False, allow_unicode=True))
+    to_write = {**config, "bind_password": encrypt_value(config.get("bind_password", ""))}
+    CONFIG_PATH.write_text(yaml.safe_dump(to_write, sort_keys=False, allow_unicode=True))
 
 
 def _connect(config: dict) -> Connection:

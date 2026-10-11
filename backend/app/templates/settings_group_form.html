@@ -1,0 +1,35 @@
+{% extends "base.html" %}
+{% block title %}{{ "Modifier le groupe" if group else "Nouveau groupe" }} - Hephaestus{% endblock %}
+{% block content %}
+<a class="back-link" href="/settings/groups">&larr; Retour aux groupes</a>
+
+<div class="page-header"><h2>{{ "Modifier « " ~ group.name ~ " »" if group else "Nouveau groupe" }}</h2></div>
+
+{% if error %}<div class="error-box" style="margin: 0 0 1rem;">{{ error }}</div>{% endif %}
+
+<div class="card">
+  <form method="post" action="{{ '/settings/groups/' ~ group.id ~ '/edit' if group else '/settings/groups/new' }}">
+    <div class="form-grid">
+      <div class="form-field">
+        <label for="name">Nom du groupe</label>
+        <input type="text" id="name" name="name" value="{{ group.name if group else '' }}" required>
+      </div>
+      <div class="form-field">
+        <label>Permissions</label>
+        <div class="type-picker">
+          {% for key, label in all_permissions.items() %}
+          <label>
+            <input type="checkbox" name="permissions" value="{{ key }}"
+                   {% if group and key in group.permissions %}checked{% endif %}>
+            <span>{{ label }}</span>
+          </label>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+    <div class="form-actions">
+      <button type="submit" class="btn">{{ "Enregistrer" if group else "Créer" }}</button>
+    </div>
+  </form>
+</div>
+{% endblock %}

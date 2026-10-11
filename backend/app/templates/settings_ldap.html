@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}LDAP/LDAPS — Hephaestus{% endblock %}
+{% block title %}LDAP/LDAPS - Hephaestus{% endblock %}
 {% block content %}
 <a class="back-link" href="/settings">&larr; Retour aux paramètres</a>
 
@@ -34,7 +34,10 @@
       </div>
       <div class="form-field">
         <label for="bind_password">Mot de passe du compte de service</label>
-        <input type="password" id="bind_password" name="bind_password" value="{{ config.bind_password }}">
+        <input type="password" id="bind_password" name="bind_password" value=""
+               placeholder="{{ '•••••••• (laisser vide pour ne pas changer)' if config.bind_password else '' }}"
+               autocomplete="new-password">
+        {% if config.bind_password %}<div class="help">Une valeur est déjà enregistrée - laisse vide pour la garder.</div>{% endif %}
       </div>
       <div class="form-field">
         <label for="search_base">Base de recherche</label>
@@ -70,10 +73,10 @@
   <p>Au login, si l'identifiant ne correspond à aucun compte local, l'application recherche
   l'utilisateur dans l'annuaire puis tente un bind avec le mot de passe saisi. En cas de
   succès, un compte "fantôme" est créé automatiquement (rôle <strong>Lecture seule</strong>
-  par défaut) — un admin peut ensuite le promouvoir Admin depuis
+  par défaut) - un admin peut ensuite le promouvoir Admin depuis
   <a href="/settings/users">Utilisateurs</a>.</p>
   <p style="margin-bottom:0">Le bouton "Tester la connexion" vérifie seulement la
-  joignabilité du serveur et le bind du compte de service — pas l'authentification d'un
+  joignabilité du serveur et le bind du compte de service - pas l'authentification d'un
   utilisateur final.</p>
 </div>
 {% endblock %}

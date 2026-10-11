@@ -1,15 +1,15 @@
 {% extends "base.html" %}
-{% block title %}Certificat (HTTPS) — Hephaestus{% endblock %}
+{% block title %}Certificat (HTTPS) - Hephaestus{% endblock %}
 {% block content %}
 <a class="back-link" href="/settings">&larr; Retour aux paramètres</a>
 
-<div class="page-header"><h2>Certificat — HTTPS</h2></div>
+<div class="page-header"><h2>Certificat - HTTPS</h2></div>
 
 <div class="help" style="margin: 0 0 1rem;">
-  Par défaut l'app répond en clair sur le port 80 — le mot de passe de connexion circule
+  Par défaut l'app répond en clair sur le port 80 - le mot de passe de connexion circule
   en clair sur le réseau. Active le HTTPS ici : certificat auto-signé généré en un clic
   (le navigateur affichera un avertissement la première fois, normal pour un certificat
-  auto-signé — à accepter une fois), ou importe le tien si tu en as un vrai.
+  auto-signé - à accepter une fois), ou importe le tien si tu en as un vrai.
 </div>
 
 {% if error %}<div class="error-box" style="margin: 0 0 1rem;">{{ error }}</div>{% endif %}
@@ -48,7 +48,7 @@
     </div>
     <div class="help" style="margin-top: 0.5rem;">
       "Réappliquer" : si le conteneur proxy a redémarré depuis la dernière activation, il
-      a rechargé la config HTTP de base — un clic ici relance l'état voulu sans tout
+      a rechargé la config HTTP de base - un clic ici relance l'état voulu sans tout
       reconfigurer.
     </div>
   </div>
@@ -74,7 +74,7 @@
 <div class="card">
   <h3>Importer un certificat existant</h3>
   <div class="help" style="padding: 0 1.25rem;">
-    Fichiers au format PEM (texte, <code>-----BEGIN ...-----</code>) — le format habituel
+    Fichiers au format PEM (texte, <code>-----BEGIN ...-----</code>) - le format habituel
     livré par une autorité de certification ou généré par <code>certbot</code>/`openssl`.
   </div>
   <form method="post" action="/settings/tls/upload" enctype="multipart/form-data" class="form-grid">
@@ -91,7 +91,7 @@
       <input type="file" name="chain_file" accept=".pem,.crt,.cer">
       <div class="help">
         Nécessaire si ton certificat n'est pas auto-signé : le ou les certificats
-        intermédiaires (et/ou racine) de l'autorité qui l'a signé — souvent livré à côté
+        intermédiaires (et/ou racine) de l'autorité qui l'a signé - souvent livré à côté
         par l'autorité (ex : "fullchain"/"ca-bundle"). Sans ça, certains navigateurs ou
         clients n'arriveront pas à vérifier la chaîne de confiance jusqu'à l'autorité.
       </div>
@@ -105,7 +105,7 @@
 <div class="card" style="margin-top: 1.25rem;">
   <h3>En ligne de commande</h3>
   <div class="help" style="padding: 0 1.25rem 1rem;">
-    Même résultat que les formulaires ci-dessus, sans passer par l'interface — à lancer
+    Même résultat que les formulaires ci-dessus, sans passer par l'interface - à lancer
     depuis un terminal sur la machine qui héberge l'application, à la racine du projet.
     Pour <code>tls set</code>, les chemins sont lus <strong>depuis le conteneur</strong> :
     copie d'abord tes fichiers dans <code>.secrets/</code> (déjà monté dedans), ou utilise
