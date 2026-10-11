@@ -1,0 +1,18 @@
+# Override pour utiliser l'image pré-construite (GitHub Container Registry) au lieu de
+# compiler depuis les sources — plus rapide pour démarrer (pas de build local de
+# Terraform/Ansible/dépendances Python), au prix de ne pas pouvoir modifier le code
+# sans reconstruire quand même.
+#
+# Usage :
+#   docker compose -f docker-compose.yml -f docker-compose.prebuilt.yml up -d
+#
+# Remplace GHCR_OWNER par le propriétaire du repo si tu as forké le projet (sinon
+# l'image par défaut pointe vers le dépôt d'origine).
+services:
+  backend:
+    build: !reset null
+    image: ghcr.io/mshadow6/hephaestus:latest
+
+  worker:
+    build: !reset null
+    image: ghcr.io/mshadow6/hephaestus:latest
