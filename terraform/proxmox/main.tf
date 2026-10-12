@@ -7,6 +7,15 @@ resource "proxmox_virtual_environment_vm" "vm" {
     full  = var.full_clone
   }
 
+  # Sans ça, le canal virtio-serial n'existe pas côté VM : qemu-guest-agent reste
+  # installé mais ne démarre jamais ("Dependency failed" côté guest), et la découverte
+  # d'inventaire ne peut jamais récupérer l'IP via l'API Proxmox (trouvé en conditions
+  # réelles le 12 octobre 2026 - toutes les VM créées avant cette date doivent être
+  # réparées à la main une fois, voir le bouton "Réparer l'agent" sur /playbooks/inventory).
+  agent {
+    enabled = true
+  }
+
   cpu {
     cores = var.vm_vcpu
   }

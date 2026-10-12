@@ -79,6 +79,72 @@ def discover_proxmox_templates() -> list[dict]:
     return results
 
 
+def discover_vsphere_vms() -> list[dict]:
+    """VMs (pas les templates) de toutes les connexions VMware activées — même intention
+    que discover_proxmox_vms, pour l'inventaire Ansible. L'IP vient de VMware Tools
+    (item.guest.ipAddress) : même principe que l'agent QEMU côté Proxmox, absent/vide si
+    les Tools ne sont pas installés ou pas encore démarrés sur la VM."""
+    results: list[dict] = []
+    vmware_conns = [c for c in list_connections() if c.enabled and c.type == "vmware"]
+    for conn in vmware_conns:
+        cfg = conn.config
+        if not all([cfg.get("api_url"), cfg.get("username"), cfg.get("password")]):
+            continue
+        try:
+            from pyVim.connect import Disconnect, SmartConnect
+            from pyVmomi import vim
+            import ssl
+
+            host = cfg["api_url"].replace("https://", "").replace("http://", "").rstrip("/").split("/")[0]
+            context = ssl._create_unverified_context() if cfg.get("insecure_tls", True) else None
+            si = SmartConnect(host=host, user=cfg["username"], pwd=cfg["password"], port=443, sslContext=context)
+            try:
+                content = si.RetrieveContent()
+
+                def find_datacenters(folder):
+                    found = []
+                    for item in folder.childEntity:
+                        if isinstance(item, vim.Datacenter):
+                            found.append(item)
+                        elif isinstance(item, vim.Folder):
+                            found.extend(find_datacenters(item))
+                    return found
+
+                def walk_vm(folder):
+                    for item in folder.childEntity:
+                        if isinstance(item, vim.VirtualMachine):
+                            if item.config and item.config.template:
+                                continue  # jamais une cible de déploiement
+                            ip = None
+                            dns_name = None
+                            if item.guest:
+                                if item.guest.ipAddress:
+                                    ip = item.guest.ipAddress
+                                # Nom DNS rapporté par VMware Tools (guest.hostName) —
+                                # disponible sans redémarrage, utile pour cibler Ansible
+                                # par nom plutôt que par IP si un DNS existe déjà.
+                                if item.guest.hostName:
+                                    dns_name = item.guest.hostName
+                            results.append({
+                                "hostname": item.name,
+                                "ip": ip,
+                                "dns_name": dns_name,
+                                "source": conn.name,
+                                "node": cfg.get("host", "vSphere"),
+                                "status": str(item.runtime.powerState) if item.runtime else "?",
+                            })
+                        elif isinstance(item, vim.Folder):
+                            walk_vm(item)
+
+                for dc in find_datacenters(content.rootFolder):
+                    walk_vm(dc.vmFolder)
+            finally:
+                Disconnect(si)
+        except Exception as exc:  # noqa: BLE001 - pyVmomi lève des erreurs variées (SSL, DNS, auth...)
+            logger.warning("Découverte VMware échouée pour la connexion '%s' : %s", conn.name, exc)
+    return results
+
+
 def discover_vsphere_templates() -> list[dict]:
     """Templates (VM marquées template) disponibles sur toutes les connexions VMware
     activées — même intention que discover_proxmox_templates, forme compatible

@@ -11,29 +11,111 @@
 
 <div class="page-header">
   <h3 style="margin:0;">Inventaire Ansible</h3>
+  <div class="form-actions">
+    <form method="post" action="/playbooks/inventory/regenerate" style="display:inline;">
+      <button type="submit" class="btn btn-secondary">Régénérer depuis Proxmox/VMware</button>
+    </form>
+    <button type="button" class="btn btn-secondary"
+            hx-get="/playbooks/inventory/yaml-fragment" hx-target="#yaml-modal-body" hx-swap="innerHTML"
+            onclick="document.getElementById('yaml-modal').showModal()">
+      Éditer le YAML brut
+    </button>
+  </div>
 </div>
-<div class="help" style="margin: 0 0 1rem;">
-  Organise tes hôtes en groupes, utilisables ensuite sur la page
-  <a href="/playbooks/deploy">Déploiement infra</a> sans avoir à cocher chaque machine
-  une par une. "Régénérer depuis Proxmox" ajoute les VMs découvertes qui ne sont pas
-  déjà présentes, sans jamais toucher aux entrées existantes.
+<div class="help" style="margin: 0 0 1.25rem;">
+  Un groupe = un identifiant Ansible (compte + clé SSH) + une liste d'hôtes. Clique
+  "Éditer" pour gérer les hôtes d'un groupe ou changer son identifiant - voir
+  <a href="/connections">Connexions</a> pour créer de nouveaux identifiants.
 </div>
 
 {% if error %}<div class="error-box" style="margin: 0 0 1rem;">{{ error }}</div>{% endif %}
 {% if saved %}<div class="test-result ok" style="margin: 0 0 1rem;">Enregistré.</div>{% endif %}
 
-<div class="form-actions" style="margin-bottom: 1rem;">
-  <form method="post" action="/playbooks/inventory/regenerate">
-    <button type="submit" class="btn btn-secondary">Régénérer depuis Proxmox</button>
-  </form>
+<dialog id="yaml-modal" class="yaml-modal">
+  <div class="page-header" style="padding: 0 0 0.75rem;">
+    <h3 style="margin:0;">Édition avancée (YAML brut)</h3>
+  </div>
+  <div id="yaml-modal-body">Chargement…</div>
+</dialog>
+
+<dialog id="group-modal" class="yaml-modal">
+  <div id="group-modal-body">Chargement…</div>
+</dialog>
+
+<h4 class="inventory-section-title">VMs créées récemment</h4>
+{% if recent_vms %}
+<div class="card" style="margin-bottom: 1.25rem;">
+  <table>
+    <thead>
+      <tr>
+        <th>Hôte</th>
+        <th>IP</th>
+        <th>Hyperviseur</th>
+        <th>Créée le</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for r in recent_vms %}
+      <tr>
+        <td class="mono">{{ r.hostname }}</td>
+        <td class="mono">{{ r.ip_address or "-" }}</td>
+        <td>
+          {% set htype = hypervisor_type(r.hypervisor_connection) %}
+          {% if htype %}<span class="type-badge">{{ htype }}</span>{% else %}<span class="muted">-</span>{% endif %}
+        </td>
+        <td>{{ r.created_at.strftime("%Y-%m-%d %H:%M") }}</td>
+        <td><a href="/vm/{{ r.id }}">Voir la demande</a></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state" style="margin-bottom: 1.25rem;">Aucune VM créée pour l'instant.</div>
+{% endif %}
+
+{% macro group_row(group_name, display_name) %}
+<tr>
+  <td>{{ display_name }}</td>
+  <td class="mono">{{ host_counts.get(group_name, 0) }}</td>
+  <td>
+    {% if credentials.get(group_name) %}
+    <span class="type-badge">{{ credentials[group_name] }}</span>
+    {% else %}
+    <span class="muted">par défaut (.env)</span>
+    {% endif %}
+  </td>
+  <td>
+    <button type="button" class="btn btn-sm btn-secondary"
+            hx-get="/playbooks/inventory/groups/{{ group_name }}/edit-fragment"
+            hx-target="#group-modal-body" hx-swap="innerHTML"
+            onclick="document.getElementById('group-modal').showModal()">
+      Éditer
+    </button>
+  </td>
+</tr>
+{% endmacro %}
+
+<h4 class="inventory-section-title">Découverte automatique</h4>
+<div class="card" style="margin-bottom: 1.25rem;">
+  <table>
+    <thead><tr><th>Groupe</th><th>Hôtes</th><th>Identifiant</th><th></th></tr></thead>
+    <tbody>
+      {% for group_name in discovery_names %}
+        {% set display = "Proxmox" if group_name == "decouverte_proxmox" else ("VMware" if group_name == "decouverte_vmware" else "Origine inconnue") %}
+        {{ group_row(group_name, display) }}
+      {% endfor %}
+    </tbody>
+  </table>
 </div>
 
+<h4 class="inventory-section-title">Groupes personnalisés</h4>
 <div class="card" style="margin-bottom: 1.25rem;">
-  <h3>Nouveau groupe</h3>
-  <form method="post" action="/playbooks/inventory/groups" class="form-grid" style="max-width: none;">
+  <form method="post" action="/playbooks/inventory/groups" class="form-grid" style="max-width: none; padding: 1.25rem;">
     <div class="form-field">
-      <label>Nom du groupe</label>
-      <input type="text" name="name" placeholder="ex : swarm, storage, samba-ad" required>
+      <label>Nouveau groupe</label>
+      <input type="text" name="name" placeholder="ex : debian13, redhat9, swarm" required>
     </div>
     <div class="form-actions">
       <button type="submit" class="btn">Ajouter le groupe</button>
@@ -41,78 +123,18 @@
   </form>
 </div>
 
-{% if groups %}
-  {% for group_name, hosts in groups.items() %}
-  <div class="card" style="margin-bottom: 1.25rem;">
-    <div class="page-header" style="padding: 1rem 1.25rem 0;">
-      <h3 style="margin:0;">{{ group_name }}</h3>
-      <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/delete"
-            onsubmit="return confirm('Supprimer le groupe « {{ group_name }} » et tous ses hôtes ?');">
-        <button type="submit" class="btn btn-sm btn-danger">Supprimer le groupe</button>
-      </form>
-    </div>
-
-    {% if hosts %}
-    <table>
-      <thead>
-        <tr>
-          <th>Hôte</th>
-          <th>IP / ansible_host</th>
-          <th></th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for h in hosts %}
-        <tr>
-          <td class="mono">{{ h.hostname }}</td>
-          <td class="mono">{{ h.ansible_host or "-" }}</td>
-          <td>
-            <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/hosts/{{ h.hostname }}/delete"
-                  onsubmit="return confirm('Retirer « {{ h.hostname }} » du groupe « {{ group_name }} » ?');">
-              <button type="submit" class="btn btn-sm btn-danger">Retirer</button>
-            </form>
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
-    {% else %}
-    <div class="empty-state">Aucun hôte dans ce groupe.</div>
-    {% endif %}
-
-    <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/hosts"
-          class="form-grid" style="max-width: none; padding: 1rem 1.25rem;">
-      <div class="form-field">
-        <label>Nom d'hôte</label>
-        <input type="text" name="hostname" placeholder="ex : srv-web-01" required>
-      </div>
-      <div class="form-field">
-        <label>IP (ansible_host, optionnel)</label>
-        <input type="text" name="ansible_host" placeholder="ex : 192.0.2.42">
-      </div>
-      <div class="form-actions">
-        <button type="submit" class="btn btn-secondary">Ajouter l'hôte</button>
-      </div>
-    </form>
-  </div>
-  {% endfor %}
+{% if custom_names %}
+<div class="card" style="margin-bottom: 1.25rem;">
+  <table>
+    <thead><tr><th>Groupe</th><th>Hôtes</th><th>Identifiant</th><th></th></tr></thead>
+    <tbody>
+      {% for group_name in custom_names %}
+        {{ group_row(group_name, group_name) }}
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
 {% else %}
-<div class="empty-state">Aucun groupe pour l'instant - crée-en un ci-dessus, ou régénère depuis Proxmox.</div>
+<div class="empty-state">Aucun groupe personnalisé pour l'instant - crée-en un ci-dessus.</div>
 {% endif %}
-
-<details style="margin-top: 1rem;">
-  <summary style="cursor:pointer; color: var(--muted);">Édition avancée (YAML brut)</summary>
-  <div class="card" style="margin-top: 0.75rem;">
-    <form method="post" action="/playbooks/inventory">
-      <div class="form-grid" style="max-width: none;">
-        <div class="form-field">
-          <textarea name="content" rows="18" class="mono" style="width:100%; font-size:0.82rem;" spellcheck="false">{{ content }}</textarea>
-        </div>
-      </div>
-      <div class="form-actions">
-        <button type="submit" class="btn">Enregistrer le YAML</button>
-      </div>
-    </form>
-  </div>
-</details>
 {% endblock %}

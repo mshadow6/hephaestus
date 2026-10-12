@@ -12,7 +12,13 @@ from app.connections.store import (
     save_connection,
 )
 from app.connections.testing import test_connection
-from app.connections.types import CATEGORY_LABELS, PROVIDER_TYPES, categories_in_use, provider_types_for_category
+from app.connections.types import (
+    CATEGORY_LABELS,
+    PROVIDER_TYPES,
+    SECRET_INPUT_TYPES,
+    categories_in_use,
+    provider_types_for_category,
+)
 from app.counts import pending_approval_count
 from app.database import get_db
 from app.templating import templates
@@ -222,7 +228,7 @@ async def test(request: Request):
         for f in fields.fields:
             if f.input_type == "checkbox":
                 config[f.name] = form.get(f.name) is not None
-            elif f.input_type == "password":
+            elif f.input_type in SECRET_INPUT_TYPES:
                 submitted = form.get(f.name, "")
                 config[f.name] = submitted if submitted else (existing.config.get(f.name, "") if existing else "")
             else:
@@ -246,10 +252,10 @@ def _save_from_form(form, existing: Connection | None):
     for f in provider.fields:
         if f.input_type == "checkbox":
             config[f.name] = form.get(f.name) is not None
-        elif f.input_type == "password":
+        elif f.input_type in SECRET_INPUT_TYPES:
             submitted = form.get(f.name, "")
-            # Champ mot de passe laissé vide à l'édition -> on garde l'ancienne valeur
-            # (jamais pré-remplie dans le formulaire, voir _connection_fields.html).
+            # Champ secret laissé vide à l'édition -> on garde l'ancienne valeur
+            # (jamais pré-rempli dans le formulaire, voir _connection_fields.html).
             config[f.name] = submitted if submitted else (existing.config.get(f.name, "") if existing else "")
         else:
             config[f.name] = form.get(f.name, "")

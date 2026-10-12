@@ -28,7 +28,13 @@ CATEGORY_LABELS: dict[str, str] = {
     "dns": "DNS",
     "itsm": "ITSM (tickets)",
     "scm": "Playbooks (dépôt Git)",
+    "ansible_credential": "Identifiants Ansible",
 }
+
+# Types de champ traités comme secrets (chiffrés au repos, jamais pré-remplis en HTML,
+# fusionnés avec la valeur existante si laissés vides à l'édition) — voir
+# app.connections.store._decrypt_config et app.routers.connections._save_from_form.
+SECRET_INPUT_TYPES = {"password", "secret_textarea"}
 
 
 def categories_in_use() -> list[tuple[str, str]]:
@@ -156,6 +162,23 @@ PROVIDER_TYPES: dict[str, ProviderType] = {
             ConnectionField("zone", "Zone DNS", help_text="ex: example.local"),
             ConnectionField("tsig_key_name", "Nom de la clé TSIG"),
             ConnectionField("tsig_key_secret", "Secret de la clé TSIG", input_type="password"),
+        ],
+    ),
+    "ansible_credential": ProviderType(
+        key="ansible_credential",
+        label="Identifiant Ansible (compte + clé SSH)",
+        category="ansible_credential",
+        fields=[
+            ConnectionField("username", "Compte distant", default="ansible",
+                             help_text="Compte créé/attendu sur les hôtes ciblés par ce groupe."),
+            ConnectionField("private_key", "Clé privée SSH", input_type="secret_textarea",
+                             help_text="Colle ici le contenu de la clé privée (ED25519, RSA...). "
+                                        "Le format n'a pas d'importance pour Ansible, juste la "
+                                        "clé qui correspond à ce que le compte accepte."),
+            ConnectionField("become_password", "Mot de passe sudo", input_type="password",
+                             required=False,
+                             help_text="Laisse vide si le compte a sudo NOPASSWD ou n'a pas besoin "
+                                        "d'élévation de privilèges."),
         ],
     ),
     "gitea": ProviderType(

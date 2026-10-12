@@ -9,8 +9,9 @@ import time
 from pathlib import Path
 
 from app.config import settings
+from app.connections.store import get_connection
 from app.models import VMRequest
-from app.provisioning.inventory_file import INVENTORY_PATH
+from app.provisioning.inventory_file import INVENTORY_PATH, get_group_credential
 
 logger = logging.getLogger(__name__)
 
@@ -344,17 +345,37 @@ def run_adhoc_playbook_streaming(
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
 
-        # Vars de connexion, appliquées à tout hôte quelle que soit sa source d'inventaire
-        # (persistant ou manuel) — le fichier persistant lui-même ne décrit que les hôtes,
-        # jamais les identifiants.
+        # Vars de connexion par défaut, appliquées à tout hôte quelle que soit sa source
+        # d'inventaire (persistant ou manuel) — le fichier persistant lui-même ne décrit
+        # que les hôtes, jamais les identifiants.
+        ini_lines = [
+            "[all:vars]",
+            f"ansible_user={settings.ansible_admin_username}",
+            f"ansible_ssh_private_key_file={settings.ansible_ssh_private_key_path}",
+            f"ansible_ssh_common_args='{_SSH_COMMON_ARGS}'",
+            f"ansible_become_pass={settings.ansible_admin_password}",
+        ]
+
+        # Si le groupe ciblé a un identifiant dédié assigné (/playbooks/inventory), il
+        # remplace l'identifiant par défaut pour CE groupe uniquement — [group:vars] est
+        # plus spécifique que [all:vars] dans Ansible, les cibles manuelles (jamais dans
+        # ce groupe) gardent le comportement par défaut.
+        credential_name = get_group_credential(limit_group) if limit_group else None
+        if credential_name:
+            credential = get_connection(credential_name)
+            if credential is None:
+                raise AnsibleError(f"Identifiant Ansible '{credential_name}' introuvable (supprimé ?)")
+            key_path = tmp_path / "group-credential-key"
+            key_path.write_text(credential.config.get("private_key", "").rstrip() + "\n")
+            key_path.chmod(0o600)
+            ini_lines += [f"\n[{limit_group}:vars]", f"ansible_user={credential.config.get('username', '')}"]
+            ini_lines.append(f"ansible_ssh_private_key_file={key_path}")
+            become_password = credential.config.get("become_password")
+            if become_password:
+                ini_lines.append(f"ansible_become_pass={become_password}")
+
         conn_vars = tmp_path / "connection-vars.ini"
-        conn_vars.write_text(
-            "[all:vars]\n"
-            f"ansible_user={settings.ansible_admin_username}\n"
-            f"ansible_ssh_private_key_file={settings.ansible_ssh_private_key_path}\n"
-            f"ansible_ssh_common_args='{_SSH_COMMON_ARGS}'\n"
-            f"ansible_become_pass={settings.ansible_admin_password}\n"
-        )
+        conn_vars.write_text("\n".join(ini_lines) + "\n")
 
         cmd = ["ansible-playbook", "-i", str(INVENTORY_PATH), "-i", str(conn_vars)]
 

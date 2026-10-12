@@ -17,6 +17,13 @@
              autocomplete="new-password"
              {% if f.required and not current %}required{% endif %}>
       {% if current %}<div class="help">Une valeur est déjà enregistrée - laisse vide pour la garder.</div>{% endif %}
+    {% elif f.input_type == "secret_textarea" %}
+      <label for="field-{{ f.name }}">{{ f.label }}{% if f.required and not current %} *{% endif %}</label>
+      <textarea id="field-{{ f.name }}" name="{{ f.name }}" rows="6" class="mono"
+                style="font-size:0.78rem;" spellcheck="false" autocomplete="off"
+                placeholder="{{ '(laisser vide pour ne pas changer)' if current else '' }}"
+                {% if f.required and not current %}required{% endif %}></textarea>
+      {% if current %}<div class="help">Une valeur est déjà enregistrée - laisse vide pour la garder.</div>{% endif %}
     {% else %}
       <label for="field-{{ f.name }}">{{ f.label }}{% if f.required %} *{% endif %}</label>
       <input type="{{ f.input_type }}" id="field-{{ f.name }}" name="{{ f.name }}"

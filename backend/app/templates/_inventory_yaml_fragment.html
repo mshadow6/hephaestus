@@ -1,0 +1,12 @@
+{% if error %}<div class="error-box" style="margin: 0 0 1rem;">{{ error }}</div>{% endif %}
+<form method="post" action="/playbooks/inventory">
+  <div class="form-grid" style="max-width: none;">
+    <div class="form-field">
+      <textarea name="content" rows="22" class="mono" style="width:100%; font-size:0.82rem;" spellcheck="false">{{ content }}</textarea>
+    </div>
+  </div>
+  <div class="form-actions">
+    <button type="submit" class="btn">Enregistrer le YAML</button>
+    <button type="button" class="btn btn-secondary" onclick="document.getElementById('yaml-modal').close()">Annuler</button>
+  </div>
+</form>

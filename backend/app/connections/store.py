@@ -4,7 +4,7 @@ from pathlib import Path
 
 import yaml
 
-from app.connections.types import PROVIDER_TYPES
+from app.connections.types import PROVIDER_TYPES, SECRET_INPUT_TYPES
 from app.secrets_crypto import decrypt_value, encrypt_value
 
 CONFIG_DIR = Path("/app/config/providers")
@@ -35,12 +35,13 @@ def _path_for(name: str) -> Path:
 
 
 def _decrypt_config(provider_type: str, config: dict) -> dict:
-    """Déchiffre les champs marqués `input_type="password"` pour ce type de provider —
-    les autres champs (URL, nom d'utilisateur...) ne sont jamais chiffrés, pas besoin."""
+    """Déchiffre les champs marqués secrets (`password`/`secret_textarea`) pour ce type
+    de provider — les autres champs (URL, nom d'utilisateur...) ne sont jamais chiffrés,
+    pas besoin."""
     provider = PROVIDER_TYPES.get(provider_type)
     if provider is None:
         return config
-    password_fields = {f.name for f in provider.fields if f.input_type == "password"}
+    password_fields = {f.name for f in provider.fields if f.input_type in SECRET_INPUT_TYPES}
     return {
         k: (decrypt_value(v) if k in password_fields and isinstance(v, str) else v)
         for k, v in config.items()
@@ -86,7 +87,7 @@ def get_connection(name: str) -> Connection | None:
 # différents (Proxmox + VMware, par ex.) doivent pouvoir être actifs en même temps, chaque
 # VMRequest choisissant explicitement sa cible (voir VMRequest.hypervisor_connection) -
 # demande explicite du user, pas une limitation technique à contourner.
-MULTI_ACTIVE_CATEGORIES = {"hypervisor"}
+MULTI_ACTIVE_CATEGORIES = {"hypervisor", "ansible_credential"}
 
 
 def save_connection(connection: Connection) -> None:
@@ -122,7 +123,7 @@ def _encrypt_config(provider_type: str, config: dict) -> dict:
     provider = PROVIDER_TYPES.get(provider_type)
     if provider is None:
         return config
-    password_fields = {f.name for f in provider.fields if f.input_type == "password"}
+    password_fields = {f.name for f in provider.fields if f.input_type in SECRET_INPUT_TYPES}
     return {
         k: (encrypt_value(v) if k in password_fields and isinstance(v, str) else v)
         for k, v in config.items()

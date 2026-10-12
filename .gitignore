@@ -17,6 +17,10 @@ config/features.yaml
 # app.provisioning.inventory_file.DEFAULT_INVENTORY
 config/inventory.yml
 
+# Quel identifiant Ansible (nom de connexion) chaque groupe d'inventaire utilise —
+# données vivantes propres à chaque installation, même raison que inventory.yml ci-dessus.
+config/inventory_credentials.yml
+
 # Manifests Swarm des services supports de MON homelab perso (Gitea/GLPI/phpIPAM),
 # pas partie de l'application elle-même — noms d'hôtes réels dedans, pas génériques.
 infra/

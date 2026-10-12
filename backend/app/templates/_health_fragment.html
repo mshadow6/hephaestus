@@ -1,16 +1,22 @@
 <div class="health-strip">
   {% for h in health_checks %}
   <div class="health-chip {{ 'ok' if h.ok else 'ko' }}">
-    <span class="dot {{ 'on' if h.ok else 'off' }}"></span>
-    <strong>{{ h.name }}</strong>
-    <span class="latency">{{ h.latency_ms }} ms</span>
+    <div class="health-chip-row">
+      <span class="dot {{ 'on' if h.ok else 'off' }}"></span>
+      <strong>{{ h.name }}</strong>
+      <span class="latency">{{ h.latency_ms }} ms</span>
+    </div>
+    {% if not h.ok %}<div class="health-chip-detail">{{ h.message }}</div>{% endif %}
   </div>
   {% endfor %}
   {% for c in connector_checks %}
-  <div class="health-chip {{ 'ok' if c.ok else 'ko' }}" title="{{ c.message }}">
-    <span class="dot {{ 'on' if c.ok else 'off' }}"></span>
-    <strong>{{ c.name }}</strong>
-    <span class="latency">{{ c.latency_ms }} ms</span>
+  <div class="health-chip {{ 'ok' if c.ok else 'ko' }}">
+    <div class="health-chip-row">
+      <span class="dot {{ 'on' if c.ok else 'off' }}"></span>
+      <strong>{{ c.name }}</strong>
+      <span class="latency">{{ c.latency_ms }} ms</span>
+    </div>
+    {% if not c.ok %}<div class="health-chip-detail">{{ c.message }}</div>{% endif %}
   </div>
   {% endfor %}
   {% if not connector_checks %}

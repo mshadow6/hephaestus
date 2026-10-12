@@ -1,0 +1,71 @@
+<div class="page-header" style="padding: 0 0 0.75rem;">
+  <h3 style="margin:0;">{{ group_name }}</h3>
+</div>
+
+<div class="form-field" style="margin-bottom: 1rem;">
+  <label>Identifiant Ansible à utiliser pour ce groupe</label>
+  <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/credential" style="display:flex; gap:0.5rem;">
+    <select name="credential" style="flex:1;">
+      <option value="">Identifiant par défaut (.env, compte {{ "ansible" }})</option>
+      {% for c in credentials %}
+      <option value="{{ c.name }}" {% if c.name == current_credential %}selected{% endif %}>
+        {{ c.name }} ({{ c.config.username }})
+      </option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-secondary">Enregistrer</button>
+  </form>
+  {% if not credentials %}
+  <div class="help">
+    Aucun identifiant Ansible créé pour l'instant - <a href="/connections" target="_blank">en créer un</a>
+    (catégorie "Identifiants Ansible").
+  </div>
+  {% endif %}
+</div>
+
+{% if hosts %}
+<table>
+  <thead><tr><th>Hôte</th><th>IP / ansible_host</th><th></th></tr></thead>
+  <tbody>
+    {% for h in hosts %}
+    <tr>
+      <td class="mono">{{ h.hostname }}</td>
+      <td class="mono">{{ h.ansible_host or "-" }}</td>
+      <td>
+        <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/hosts/{{ h.hostname }}/delete"
+              onsubmit="return confirm('Retirer « {{ h.hostname }} » ?');">
+          <button type="submit" class="btn btn-sm btn-danger">Retirer</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty-state">Aucun hôte dans ce groupe.</div>
+{% endif %}
+
+<form method="post" action="/playbooks/inventory/groups/{{ group_name }}/hosts"
+      class="form-grid" style="max-width: none; padding: 1rem 0 0;">
+  <div class="form-field">
+    <label>Nom d'hôte</label>
+    <input type="text" name="hostname" required>
+  </div>
+  <div class="form-field">
+    <label>IP (optionnel)</label>
+    <input type="text" name="ansible_host" placeholder="ex : 192.0.2.42">
+  </div>
+  <div class="form-actions" style="padding: 0;">
+    <button type="submit" class="btn btn-secondary">Ajouter</button>
+  </div>
+</form>
+
+<div class="form-actions" style="padding: 1.25rem 0 0; justify-content: flex-end;">
+  {% if not is_discovery %}
+  <form method="post" action="/playbooks/inventory/groups/{{ group_name }}/delete"
+        onsubmit="return confirm('Supprimer le groupe « {{ group_name }} » et tous ses hôtes ?');">
+    <button type="submit" class="btn btn-sm btn-danger">Supprimer le groupe</button>
+  </form>
+  {% endif %}
+  <button type="button" class="btn btn-secondary" onclick="document.getElementById('group-modal').close()">Fermer</button>
+</div>

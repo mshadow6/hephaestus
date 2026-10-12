@@ -9,18 +9,27 @@ from pathlib import Path
 
 import yaml
 
-from app.provisioning.inventory import discover_proxmox_vms
+from app.provisioning.inventory import discover_proxmox_vms, discover_vsphere_vms
 
 logger = logging.getLogger(__name__)
 
 INVENTORY_PATH = Path("/app/config/inventory.yml")
 
+# Groupes de découverte automatique, un par hyperviseur, plus un "inconnu" pour les
+# hôtes de l'ancien groupe plat "decouverte" (avant cette séparation) qu'on ne peut pas
+# rattacher avec certitude à Proxmox ou VMware après coup.
+DISCOVERY_GROUPS = ["decouverte_proxmox", "decouverte_vmware", "decouverte_inconnu"]
+
 DEFAULT_INVENTORY = """\
-# Inventaire Ansible — édité ici ou régénéré (fusion additive) depuis la découverte
-# Proxmox. Format YAML standard Ansible : https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html
+# Inventaire Ansible, édité ici ou régénéré (fusion additive) depuis la découverte
+# Proxmox/VMware. Format YAML standard Ansible : https://docs.ansible.com/ansible/latest/inventory_guide/intro_inventory.html
 all:
   children:
-    decouverte:
+    decouverte_proxmox:
+      hosts: {}
+    decouverte_vmware:
+      hosts: {}
+    decouverte_inconnu:
       hosts: {}
 """
 
@@ -122,41 +131,90 @@ def delete_host(group: str, hostname: str) -> None:
         write_inventory(yaml.safe_dump(parsed, sort_keys=False, allow_unicode=True))
 
 
-def regenerate_from_proxmox(existing_done_vms: list[dict] | None = None) -> str:
-    """Fusionne les VMs découvertes sur Proxmox (+ celles de ce pipeline) dans
+def _migrate_flat_decouverte(parsed: dict) -> None:
+    """Migration unique : l'ancien groupe plat "decouverte" (avant la séparation par
+    hyperviseur) part dans "decouverte_inconnu" — on ne peut pas savoir après coup s'il
+    vient de Proxmox ou de VMware, la prochaine régénération le confirmera/corrigera si
+    le même hôte est redécouvert avec une origine connue."""
+    children = parsed["all"]["children"]
+    old = children.pop("decouverte", None)
+    if not old:
+        return
+    inconnu = children.setdefault("decouverte_inconnu", {}).setdefault("hosts", {})
+    for hostname, data in (old.get("hosts") or {}).items():
+        inconnu.setdefault(hostname, data)
+
+
+def regenerate_discovery(existing_done_vms: list[dict] | None = None) -> str:
+    """Fusionne les VMs découvertes sur Proxmox et VMware (+ celles de ce pipeline) dans
     l'inventaire existant — additif seulement : n'écrase jamais un hôte déjà présent
     (potentiellement édité à la main avec une vraie IP), ajoute juste les nouveaux dans
-    le groupe "decouverte"."""
+    le groupe de découverte correspondant à leur hyperviseur ("decouverte_proxmox" ou
+    "decouverte_vmware").
+    """
     try:
         parsed = yaml.safe_load(read_inventory()) or {}
     except yaml.YAMLError:
         parsed = {}
     if not isinstance(parsed, dict) or "all" not in parsed:
         parsed = yaml.safe_load(DEFAULT_INVENTORY)
+    parsed.setdefault("all", {}).setdefault("children", {})
 
-    all_node = parsed.setdefault("all", {})
-    children = all_node.setdefault("children", {})
-    decouverte = children.setdefault("decouverte", {})
-    hosts = decouverte.setdefault("hosts", {}) or {}
+    _migrate_flat_decouverte(parsed)
 
-    known_hostnames = set(hosts.keys())
+    children = parsed["all"]["children"]
+    known_hostnames = set()
     for group in children.values():
         known_hostnames.update((group or {}).get("hosts", {}).keys())
 
-    discovered = discover_proxmox_vms()
-    for vm in discovered:
-        if vm["hostname"] in known_hostnames:
-            continue
-        hosts[vm["hostname"]] = {"ansible_host": vm["ip"]} if vm["ip"] else {}
-        known_hostnames.add(vm["hostname"])
+    def _merge(group_name: str, vms: list[dict]):
+        hosts = children.setdefault(group_name, {}).setdefault("hosts", {})
+        for vm in vms:
+            if vm["hostname"] in known_hostnames:
+                continue
+            # IP d'abord si connue (agent QEMU/VMware Tools), sinon le nom DNS rapporté
+            # par VMware Tools (guest.hostName) - utilisable tel quel par Ansible, résolu
+            # à la connexion, sans jamais avoir besoin de l'agent ni d'un redémarrage.
+            target = vm.get("ip") or vm.get("dns_name")
+            hosts[vm["hostname"]] = {"ansible_host": target} if target else {}
+            known_hostnames.add(vm["hostname"])
 
-    for vm in (existing_done_vms or []):
-        if vm["hostname"] in known_hostnames:
-            continue
-        hosts[vm["hostname"]] = {"ansible_host": vm["ip"]} if vm.get("ip") else {}
-        known_hostnames.add(vm["hostname"])
+    _merge("decouverte_proxmox", discover_proxmox_vms())
+    _merge("decouverte_vmware", discover_vsphere_vms())
+    _merge("decouverte_inconnu", existing_done_vms or [])
 
-    decouverte["hosts"] = hosts
     new_content = yaml.safe_dump(parsed, sort_keys=False, allow_unicode=True)
     write_inventory(new_content)
     return new_content
+
+
+# Quel identifiant Ansible (nom d'une connexion type="ansible_credential", voir
+# app.connections.types) utiliser pour chaque groupe — fichier séparé plutôt qu'une clé
+# dans inventory.yml : ça garde l'inventaire lisible comme du YAML Ansible pur (pas de
+# clé "maison" mélangée dedans), et un éventuel "YAML invalide" sur l'un des deux fichiers
+# ne casse jamais l'autre.
+CREDENTIALS_PATH = Path("/app/config/inventory_credentials.yml")
+
+
+def _read_credentials_map() -> dict[str, str]:
+    if not CREDENTIALS_PATH.exists():
+        return {}
+    try:
+        return yaml.safe_load(CREDENTIALS_PATH.read_text()) or {}
+    except yaml.YAMLError:
+        logger.warning("inventory_credentials.yml invalide, ignoré")
+        return {}
+
+
+def get_group_credential(group: str) -> str | None:
+    return _read_credentials_map().get(group)
+
+
+def set_group_credential(group: str, credential_name: str | None) -> None:
+    mapping = _read_credentials_map()
+    if credential_name:
+        mapping[group] = credential_name
+    else:
+        mapping.pop(group, None)
+    CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
+    CREDENTIALS_PATH.write_text(yaml.safe_dump(mapping, sort_keys=True, allow_unicode=True))

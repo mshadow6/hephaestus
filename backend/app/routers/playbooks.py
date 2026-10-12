@@ -6,9 +6,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.auth import require_login, require_permission
+from app.connections.store import get_connection, list_connections
 from app.counts import pending_approval_count
 from app.database import get_db
-from app.models import PlaybookRun
+from app.models import PlaybookRun, VMRequest
 from app.playbooks.store import (
     CATEGORIES,
     CATEGORY_LABELS,
@@ -20,14 +21,17 @@ from app.playbooks.store import (
     save_playbook,
 )
 from app.provisioning.inventory_file import (
+    DISCOVERY_GROUPS,
     InvalidInventoryError,
     add_group,
     add_host,
     delete_group,
     delete_host,
+    get_group_credential,
     list_structured,
     read_inventory,
-    regenerate_from_proxmox,
+    regenerate_discovery,
+    set_group_credential,
     write_inventory,
 )
 from app.provisioning.inventory_file import list_groups as list_inventory_groups
@@ -176,18 +180,74 @@ async def deploy(request: Request, db: Session = Depends(get_db), admin: dict = 
     return RedirectResponse(url="/playbooks/runs", status_code=303)
 
 
+def _hypervisor_type(connection_name: str | None) -> str | None:
+    if not connection_name:
+        return None
+    conn = get_connection(connection_name)
+    return conn.type if conn else None
+
+
+def _credential_connections():
+    return [c for c in list_connections() if c.enabled and c.type == "ansible_credential"]
+
+
 @router.get("/inventory", dependencies=[Depends(require_permission("run_playbooks"))])
 def inventory_form(request: Request, db: Session = Depends(get_db)):
+    all_groups = list_structured()
+    discovery = {name: all_groups.pop(name, []) for name in DISCOVERY_GROUPS}
+
+    recent_vms = db.scalars(
+        select(VMRequest).order_by(VMRequest.created_at.desc()).limit(5)
+    ).all()
+
+    group_names = list(discovery.keys()) + list(all_groups.keys())
+    host_counts = {name: len(discovery.get(name) or all_groups.get(name) or []) for name in group_names}
+    credentials = {name: get_group_credential(name) for name in group_names}
+
     return templates.TemplateResponse(
         request, "playbooks_inventory.html",
         {
-            "groups": list_structured(),
-            "content": read_inventory(),
+            "recent_vms": recent_vms,
+            "hypervisor_type": _hypervisor_type,
+            "discovery_names": list(discovery.keys()),
+            "custom_names": list(all_groups.keys()),
+            "host_counts": host_counts,
+            "credentials": credentials,
             "pending_count": pending_approval_count(db),
             "error": request.query_params.get("error"),
             "saved": request.query_params.get("saved"),
         },
     )
+
+
+@router.get("/inventory/yaml-fragment", dependencies=[Depends(require_permission("run_playbooks"))])
+def inventory_yaml_fragment(request: Request):
+    return templates.TemplateResponse(
+        request, "_inventory_yaml_fragment.html",
+        {"content": read_inventory(), "error": request.query_params.get("error")},
+    )
+
+
+@router.get("/inventory/groups/{group}/edit-fragment", dependencies=[Depends(require_permission("run_playbooks"))])
+def inventory_group_edit_fragment(group: str, request: Request):
+    hosts = list_structured().get(group, [])
+    return templates.TemplateResponse(
+        request, "_inventory_group_edit_fragment.html",
+        {
+            "group_name": group,
+            "hosts": hosts,
+            "credentials": _credential_connections(),
+            "current_credential": get_group_credential(group),
+            "is_discovery": group in DISCOVERY_GROUPS,
+        },
+    )
+
+
+@router.post("/inventory/groups/{group}/credential", dependencies=[Depends(require_permission("run_playbooks"))])
+async def inventory_group_credential(group: str, request: Request):
+    form = await request.form()
+    set_group_credential(group, (form.get("credential") or "").strip() or None)
+    return RedirectResponse(url="/playbooks/inventory?saved=1", status_code=303)
 
 
 @router.post("/inventory", dependencies=[Depends(require_permission("run_playbooks"))])
@@ -204,7 +264,7 @@ async def inventory_save(request: Request):
 @router.post("/inventory/regenerate", dependencies=[Depends(require_permission("run_playbooks"))])
 def inventory_regenerate():
     try:
-        regenerate_from_proxmox()
+        regenerate_discovery()
     except Exception:  # noqa: BLE001 — jamais casser la page pour un souci de découverte
         logger.exception("Régénération de l'inventaire échouée")
         return RedirectResponse(
