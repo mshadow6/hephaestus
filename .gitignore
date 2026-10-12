@@ -42,3 +42,7 @@ terraform.tfvars.json
 
 # Contexte Claude Code — local uniquement, pas destiné à être publié
 CLAUDE.md
+
+# État de sécurité détaillé — utile en interne, pas publié publiquement (ce niveau de
+# détail sur ce qui est faible/pas encore corrigé n'a pas à être offert publiquement).
+SECURITY.md

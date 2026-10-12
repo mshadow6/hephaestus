@@ -39,8 +39,9 @@ traitement derrière.
 **Licence** : voir [`LICENSE`](LICENSE), publié pour évaluation/test, pas une licence
 open-source permissive (voir ce fichier pour le détail).
 
-**Sécurité** : voir [`SECURITY.md`](SECURITY.md), état réel audité (ce qui est solide,
-ce qui est un compromis assumé, ce qui manque), pas juste une liste de bonnes intentions.
+**Sécurité** : revue régulièrement (durcissement réseau, secrets chiffrés au repos,
+authentification anti-bruteforce...), documentation détaillée gardée en interne plutôt
+que publiée ici.
 
 ## ⚙️ Ce que fait l'application
 
@@ -221,8 +222,7 @@ docker compose up -d --build
 ```
 
 Première ouverture sur `http://localhost` (port 80, via Caddy, le backend n'est plus
-exposé directement sur `8000` depuis le 2026-10-06, voir `SECURITY.md`) : un compte admin
-est à créer au premier lancement.
+exposé directement sur `8000`) : un compte admin est à créer au premier lancement.
 
 ### 5. Connexions
 
