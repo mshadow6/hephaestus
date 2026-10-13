@@ -18,8 +18,7 @@ flowchart TD
     H --> I
 ```
 
-Schéma plus détaillé (étape par étape, qui utilise quel compte à chaque phase) :
-[voir ici](https://claude.ai/artifact/DHzkuGaJLP8cfgoxNAJUXU).
+
 
 **Scope actuel** : Proxmox et VMware/vCenter fonctionnent tous les deux, testés de bout
 en bout sur une vraie infrastructure, et peuvent être actifs en même temps, chaque
