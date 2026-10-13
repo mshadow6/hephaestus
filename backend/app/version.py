@@ -10,7 +10,7 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-CURRENT_VERSION = "1.1.0"
+CURRENT_VERSION = "1.2.0"
 REPO = "mshadow6/hephaestus"
 CHECK_INTERVAL_SECONDS = 6 * 3600  # 6h - une app self-hosted n'a pas besoin de plus frais
 
