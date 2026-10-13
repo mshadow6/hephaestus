@@ -26,148 +26,32 @@ chaque demande de VM choisit explicitement sa cible dans le formulaire (voir
 "Hyperviseurs" plus bas). Post-install Windows (WinRM) reste un brouillon jamais testé
 (pas d'infra Windows disponible au moment de l'écrire) ; Linux uniquement pour le
 post-install à ce stade.
+💡 En bref
+Délivrance zéro étape manuelle : Validation en un clic sur le tableau de bord, le pipeline s'occupe du reste.
+Architecture Pluggable : Interfaces modulaires pour les fournisseurs IPAM, DNS, Hyperviseurs et sources de demandes.
+Multi-Hyperviseur simultané : Gestion parallèle de clusters Proxmox VE et VMware vCenter .
+Post-configuration automatisée : Exécution de playbooks Ansible sur mesure (durcissement SSH, mise à jour, agents).
+Suivi en temps réel : Visibilité détaillée étape par étape (IPAM, DNS, Terraform, Ansible) au lieu d'un statut global ambigu.
+⚙️ Fonctionnalités clés
+Multi-sources de demande : Formulaire natif dynamique (filtrage des templates réels par hyperviseur, vérification du nom d'hôte) ou webhook GLPI.
 
-**Important sur le vocabulaire** : "GLPI" est le **premier** provider implémenté pour le
-point d'entrée des demandes, pas une limite définitive. L'IPAM, le DNS et l'hyperviseur
-sont tous les trois construits comme de vraies interfaces pluggables (`backend/app/ipam/`,
-`backend/app/dns/`, `backend/app/provisioning/terraform_runner.py`, un module Terraform
-par hyperviseur, choisi dynamiquement). Le point d'entrée des demandes suit le même
-principe : le webhook GLPI et le formulaire natif (`/requests/new`) créent tous les deux
-exactement le même objet interne et suivent ensuite le même pipeline, sans distinction de
-traitement derrière.
+Orchestration modulaire :
 
-**Licence** : voir [`LICENSE`](LICENSE), publié pour évaluation/test, pas une licence
-open-source permissive (voir ce fichier pour le détail).
+IPAM & DNS : phpIPAM et Technitium DNS pré-intégrés.
 
-**Sécurité** : revue régulièrement (durcissement réseau, secrets chiffrés au repos,
-authentification anti-bruteforce...), documentation détaillée gardée en interne plutôt
-que publiée ici.
+Provisionnement : Modules Terraform dédiés pour Proxmox et vSphere.
 
-## ⚙️ Ce que fait l'application
+Post-install Linux : Déploiement de clés SSH, suppression de l'accès root, mises à jour et playbooks personnalisés.
 
-- Reçoit une demande de VM, webhook GLPI (`/webhooks/glpi`) **ou** formulaire natif du
-  dashboard (`/requests/new`), les deux créent la même chose et suivent le même circuit.
-  Le formulaire natif propose une liste déroulante des templates réellement présents sur
-  l'hyperviseur **choisi** (Proxmox et VMware peuvent être actifs en même temps, la
-  liste de templates se filtre selon l'hyperviseur sélectionné), rejette un nom d'hôte
-  déjà utilisé par une demande active, et peut être désactivé entièrement depuis
-  `/settings` si tu passes uniquement par GLPI (le webhook, lui, reste actif quoi qu'il arrive)
-- La met en attente de validation par un humain sur un dashboard web, jamais approuvée
-  automatiquement par le code, toujours une décision humaine explicite
-<img width="1920" height="1077" alt="Capture d’écran du 2026-10-01 13-35-45" src="https://github.com/user-attachments/assets/538793a2-f784-469d-9844-c2cb3c27ec9f" />
-<img width="1884" height="1004" alt="Capture d’écran du 2026-10-01 13-37-11" src="https://github.com/user-attachments/assets/7659d34e-2efc-4f3f-a88e-b3cd947e9748" />
-<img width="1920" height="1016" alt="Capture d’écran du 2026-10-01 13-37-56" src="https://github.com/user-attachments/assets/74b8be2f-a9c8-4aae-84e2-4f1126c25697" />
+Catalogue de playbooks : Gestion dynamique de playbooks Ansible obligatoires ou optionnels depuis l'interface web.
 
-- Une fois approuvée : réserve une IP (phpIPAM par défaut, interface branchée pour
-  d'autres providers IPAM), crée l'enregistrement DNS correspondant si un connecteur DNS
-  est actif (Technitium aujourd'hui, un vrai provider testé, Windows DNS a du code
-  écrit mais jamais testé contre un vrai serveur), crée la VM via Terraform (Proxmox
-  **ou** VMware selon le choix fait dans la demande), puis exécute un post-install
-  Ansible (compte admin + clé SSH, fermeture de l'accès root en SSH, mise à jour système,
-  et les playbooks de ton choix), chaque étape affiche son propre statut vert/réussi ou
-  rouge/échec sur la page de la demande, pas juste un statut global ambigu
-- Notifie le ticket GLPI d'origine à chaque étape (approbation, rejet, fin de création),
-  silencieusement ignoré si la demande ne vient pas de GLPI
-- Catalogue de playbooks gérable depuis l'interface (obligatoire/optionnel configurable
-  par toi, pas figé dans le code), déploiement à la demande contre n'importe quel hôte de
-  ton inventaire (pas seulement les VMs créées par ce pipeline), sortie en direct
-  <img width="1920" height="1080" alt="Capture d’écran du 2026-10-01 14-00-44" src="https://github.com/user-attachments/assets/a3759e97-3728-4765-b02d-8adffa939691" />
-- Connexions (Proxmox, VMware, phpIPAM, DNS, GLPI, dépôt Git de playbooks, LDAP,
-  Keycloak) configurables depuis l'interface web ou en CLI, avec test de connexion
-  intégré, secrets chiffrés au repos (jamais stockés en clair sur disque)
-  <img width="1920" height="1019" alt="Capture d’écran du 2026-10-01 14-13-37" src="https://github.com/user-attachments/assets/3227a3ad-b50f-409c-9c33-1afc3ba057e8" />
-- Groupes de permissions personnalisables (`/settings/groups`), pas de rôle figé
-  admin/viewer, chaque groupe combine librement les droits qu'on veut lui donner (créer
-  des VM, gérer les connecteurs, lancer des playbooks, gérer les utilisateurs...)
+Sécurité et granularité :
 
+Secrets chiffrés au repos.
 
-## 📋 Champs d'une demande de VM
+Modèle de permissions RBAC sur-mesure ( /settings/groups).
 
-Que la demande arrive par le formulaire natif ou par GLPI, l'app attend les mêmes
-informations de base :
-
-| Champ | Requis | Signification |
-|---|---|---|
-| `hostname` | oui | Nom de la VM à créer |
-| `hypervisor_connection` | non | Quelle connexion hyperviseur cibler (Proxmox ou VMware), disponible uniquement via `/requests/new` pour l'instant, pas encore côté GLPI. Si absent et plusieurs hyperviseurs sont actifs, le choix retombe sur le premier trouvé, pas garanti, précise-le explicitement. |
-| `os_template` | non | Quel template cloner, voir **limite importante** ci-dessous |
-| `cpu` | non | Nombre de vCPU |
-| `ram_gb` | non | RAM en Go |
-| `disk_gb` | non | Disque en Go |
-| `vlan` | non | VLAN cible, normalisé automatiquement à son seul numéro ("VLAN 100" → "100"), utilisé pour choisir le bon sous-réseau si l'IPAM en gère plusieurs (voir `/connections/<nom>/subnets`) |
-| `environment` | non | Libre (ex: "production"), disponible uniquement via `/requests/new`, pas transmis par le formulaire GLPI actuel |
-
-**Sur `os_template`** : résolu en direct contre le cluster Proxmox (nom de VM marquée
-"template" dans Proxmox), pas une liste codée en dur à maintenir. Le formulaire natif
-affiche les templates réellement trouvés ; via GLPI, la valeur envoyée doit correspondre
-exactement au nom du template dans Proxmox, sinon la création échoue avec "Template
-Proxmox introuvable".
-
-**Format attendu côté GLPI** (si tu utilises le webhook plutôt que le formulaire natif) :
-le contenu du ticket (`item.content`) doit contenir des lignes au format
-`<b>N) Label</b>: valeur<br>` (ce que produit nativement un formulaire GLPI Formcreator),
-avec ces labels précis (`backend/app/parsers/glpi_formcreator.py`) :
-`Nom de la VM`, `Template à cloner`, `vCPU`, `RAM`, `VLAN`, `Taille disque`, tous
-obligatoires côté GLPI (contrairement au formulaire natif, où seul `hostname` l'est).
-L'ordre n'a pas d'importance, le matching se fait sur le label.
-
-## ✅ Prérequis
-
-- Docker + Docker Compose
-- **Au moins un hyperviseur** : un cluster/nœud Proxmox (avec un token API), **ou** un
-  vCenter VMware (avec un compte de service, voir "Hyperviseurs" plus bas pour les
-  permissions exactes), **ou les deux à la fois**
-- Un serveur phpIPAM (ou un autre IPAM, voir `backend/app/ipam/`, interface à
-  implémenter pour brancher autre chose)
-- Un dépôt Git accessible en SSH pour y stocker tes playbooks Ansible (le dépôt
-  lui-même n'est pas fourni, voir plus bas)
-- (Optionnel) Un serveur DNS pour l'enregistrement automatique de chaque VM, Technitium
-  DNS Server est le provider réellement implémenté et testé (`backend/app/dns/`, Windows
-  DNS a du code écrit mais non testé)
-- (Optionnel) Une instance GLPI avec l'API v2 (OAuth2) activée, si tu veux le flux
-  ticket → VM plutôt qu'un appel API direct
-
-## 🖥️ Hyperviseurs
-
-Proxmox et VMware peuvent être actifs **en même temps**, chaque demande de VM choisit
-explicitement sa cible dans le formulaire (menu déroulant "Hyperviseur"), et la liste des
-templates proposée se filtre automatiquement selon le choix. Rien n'empêche de n'activer
-qu'un seul des deux si c'est tout ce dont tu as besoin.
-
-**Template VMware : prérequis précis** (sinon le bootstrap cloud-init échoue en silence,
-vécu en le construisant) :
-- `cloud-init` **et** `open-vm-tools` installés (c'est ce dernier qui expose les infos au
-  template via le canal "GuestInfo" que cloud-init lit)
-- `PermitRootLogin yes` dans `/etc/ssh/sshd_config` (Debian le restreint par défaut,
-  même limite que sur le template Proxmox)
-- `cloud-init clean --logs` **avant** de convertir en template (sinon cloud-init pense
-  avoir déjà fait son premier démarrage et ne rejoue plus rien sur les clones)
-- Garder le template à jour (`apt upgrade`) de temps en temps, un template resté stable
-  trop longtemps augmente le risque que le post-install (`apt update` dans
-  `update-os.yml`) tombe en plein milieu de la mise à jour automatique que Debian lance
-  lui-même au premier démarrage (verrou `dpkg` partagé, pas un bug du pipeline).
-
-**Compte de service VMware : permissions minimales exactes**, à assigner sur l'objet
-précis (hôte/cluster/dossier dédié, avec "Propagate to children"), pas au niveau racine
-du vCenter :
-- Virtual Machine → Inventaire : Créer, Créer à partir d'un modèle existant, Supprimer,
-  Déplacer
-- Virtual Machine → Modifier la configuration : Ajouter disque, Ajouter/supprimer
-  périphérique, Configuration avancée, **Changer ressource**, Changer CPU/mémoire,
-  Modifier les paramètres, Renommer
-- Virtual Machine → Approvisionnement : Cloner, Déployer un modèle
-- Virtual Machine → Interaction : Allumer, Éteindre, Réinitialiser
-- Resource → Assigner au pool de ressources, **Migration à froid**, **Migration à chaud**
-  (nécessaire dès qu'on fixe explicitement l'hôte ET le pool de ressources cible)
-- Datastore → Allouer de l'espace, Parcourir, Gestion de fichiers
-- Network → Assign
-- Folder → Create (si les VM sont rangées dans un dossier)
-
-Les deux en gras (**Changer ressource**, **Migration à froid/à chaud**) sont celles qui
-manquent le plus souvent dans un premier essai, l'erreur `Permission to perform this
-operation was denied` sans précision suffisante côté Terraform, le vrai détail (quelle
-permission exacte) se trouve dans le **journal d'événements vCenter**, pas l'historique
-des tâches.
+Connexions testables en un clic via l'IHM ou la CLI.
 
 ## 🚀 Quickstart
 
