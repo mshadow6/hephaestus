@@ -316,6 +316,23 @@ code, .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-
 }
 .back-link:hover { background: var(--surface-hover); border-color: var(--accent); }
 
+.update-banner {
+  margin: 0.75rem 1.25rem 0;
+  padding: 0.6rem 1rem;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  border-radius: var(--radius);
+  color: #3730a3;
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+html[data-theme="dark"] .update-banner { background: #1e1b4b; border-color: #3730a3; color: #c7d2fe; }
+
 .error-box {
   margin: 1.25rem;
   padding: 0.9rem 1rem;

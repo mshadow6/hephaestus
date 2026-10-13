@@ -1,0 +1,6 @@
+{% if update_available %}
+<div class="update-banner">
+  <span>Une nouvelle version est disponible : <strong>{{ latest }}</strong> (tu es en {{ current }})</span>
+  <a href="https://github.com/mshadow6/hephaestus/releases/tag/{{ latest }}" target="_blank" class="btn btn-sm btn-secondary">Voir la release</a>
+</div>
+{% endif %}

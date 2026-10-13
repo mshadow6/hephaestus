@@ -34,6 +34,11 @@
   </a>
 </div>
 
+<div class="section-title" style="margin-left:0">Version</div>
+<div hx-get="/settings/update-fragment" hx-trigger="load" hx-swap="outerHTML" style="margin-bottom: 1.25rem;">
+  <div class="card"><div style="padding: 1.25rem;">Vérification...</div></div>
+</div>
+
 <div class="section-title" style="margin-left:0">Points d'entrée des demandes de VM</div>
 <div class="card">
   <form method="post" action="/settings/features" class="form-field checkbox-field" style="padding: 1.25rem;">

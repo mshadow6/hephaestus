@@ -16,6 +16,7 @@ from app.models import Group, User
 from app.permissions import PERMISSIONS
 from app.templating import templates
 from app.tls import TlsError, apply as tls_apply, cert_info, generate_self_signed, load_state, save_uploaded
+from app.version import check_update
 
 router = APIRouter(prefix="/settings", include_in_schema=False, dependencies=[Depends(require_login)])
 
@@ -26,6 +27,13 @@ def settings_home(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse(
         request, "settings.html",
         {"pending_count": pending_approval_count(db), "features": load_features()},
+    )
+
+
+@router.get("/update-fragment", dependencies=[Depends(require_permission("manage_settings"))])
+def update_fragment(request: Request):
+    return templates.TemplateResponse(
+        request, "_update_status_card.html", check_update(),
     )
 
 

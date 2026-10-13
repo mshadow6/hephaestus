@@ -20,6 +20,7 @@ from app.provisioning.inventory import discover_templates
 from app.feature_flags import load_features
 from app.queue import vm_queue
 from app.templating import templates
+from app.version import check_update
 from app.worker.tasks import process_vm_request
 
 logger = logging.getLogger(__name__)
@@ -202,6 +203,16 @@ def deployments(
             "glpi_base_url": _glpi_base_url(),
             "pending_count": pending_approval_count(db),
         },
+    )
+
+
+@router.get("/update-check-fragment")
+def update_check_fragment(request: Request):
+    """Chargé en différé (hx-get) depuis base.html : vérifie contre la dernière release
+    GitHub (mis en cache 6h, voir app.version) - jamais bloquer le rendu d'une page pour
+    ça, et jamais planter si GitHub est injoignable."""
+    return templates.TemplateResponse(
+        request, "_update_banner.html", check_update(),
     )
 
 

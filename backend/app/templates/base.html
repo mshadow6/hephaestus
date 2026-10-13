@@ -132,6 +132,7 @@
       {% endif %}
     </nav>
   </header>
+  <div hx-get="/update-check-fragment" hx-trigger="load" hx-swap="outerHTML"></div>
   <main>
     {% block content %}{% endblock %}
   </main>

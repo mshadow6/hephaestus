@@ -1,0 +1,22 @@
+<div class="card">
+  <h3>Mise à jour</h3>
+  <div style="padding: 0 1.25rem 1.25rem;">
+    {% if update_available %}
+    <div class="test-result ok" style="margin: 0 0 0.75rem;">
+      Une mise à jour est disponible : <strong>{{ latest }}</strong> (tu es en {{ current }})
+    </div>
+    {% elif latest %}
+    <div class="test-result ok" style="margin: 0 0 0.75rem;">
+      Dernière version déjà installée ({{ current }}).
+    </div>
+    {% else %}
+    <div class="help" style="margin: 0 0 0.75rem;">
+      Impossible de vérifier pour l'instant (GitHub injoignable, ou pas encore de
+      release publiée) - version actuelle : <strong>{{ current }}</strong>.
+    </div>
+    {% endif %}
+    <a href="https://github.com/mshadow6/hephaestus/releases" target="_blank" class="btn btn-secondary">
+      Voir toutes les releases sur GitHub
+    </a>
+  </div>
+</div>
