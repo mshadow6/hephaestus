@@ -18,8 +18,47 @@ flowchart TD
     H --> I
 ```
 
-Schéma plus détaillé (étape par étape, qui utilise quel compte à chaque phase) :
-[voir ici](https://claude.ai/artifact/DHzkuGaJLP8cfgoxNAJUXU).
+<details>
+<summary>Détail du post-install (3 passes Ansible, quel compte à chaque étape)</summary>
+
+```mermaid
+flowchart TD
+    S0["wait_for_ssh(ip)"] --> S1
+
+    subgraph E1["Étape 1 : deploy-ssh-keys.yml"]
+      direction TB
+      S1["Connexion : root + mot de passe bootstrap\n(éphémère, cloud-init, usage unique)"] --> S1a["Crée le compte ansible"]
+      S1a --> S1b["Déploie la clé publique d'automatisation"]
+      S1b --> S1c["sudo activé, mot de passe requis"]
+    end
+    S1c --> S2
+
+    subgraph E2["Étape 2 : harden-root.yml"]
+      direction TB
+      S2["Connexion : compte ansible + clé privée"] --> S2a{"Garde-fou anti-lockout :\nclé + sudo vérifiés avant\nde continuer ?"}
+      S2a -->|non, on s'arrête| S2x["Échec propre, root reste ouvert"]
+      S2a -->|oui| S2b["PermitRootLogin no\nPasswordAuthentication no"]
+    end
+    S2b --> S3
+
+    subgraph E3["Étape 3 : catalogue de playbooks"]
+      direction TB
+      S3["Même connexion ansible + clé"] --> S3a["Playbooks cochés à l'approbation"]
+      S3a --> S3b["Playbook absent du repo = ignoré, pas un échec"]
+    end
+    S3b --> F["Statut par étape (vert/rouge) sur /vm/id"]
+
+    classDef danger fill:#a13a2e,color:#fff,stroke:none;
+    class S2x danger;
+```
+
+| Étape | Compte | Authentification |
+|---|---|---|
+| Bootstrap | `root` | Mot de passe root éphémère, généré par requête, jeté après usage |
+| Durcissement + catalogue | `ansible` | Clé privée + mot de passe sudo |
+| Récupération des playbooks | `git` (lecture seule) | Deploy key SSH dédiée, jamais utilisée sur une VM |
+
+</details>
 
 **Scope actuel** : Proxmox et VMware/vCenter fonctionnent tous les deux, testés de bout
 en bout sur une vraie infrastructure, et peuvent être actifs en même temps, chaque
